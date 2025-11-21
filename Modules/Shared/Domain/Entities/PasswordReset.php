@@ -12,15 +12,15 @@ final class PasswordReset
     public DateTimeImmutable $expiresAt;
     public bool $used;
     public DateTimeImmutable $createdAt;
-    public ?User $user = null;
+    public ?User $user;
 
     public function __construct(
         int $id,
         string $token,
         string $userId,
         DateTimeImmutable $expiresAt,
-        bool $used = false,
-        ?DateTimeImmutable $createdAt = null,
+        bool $used,
+        DateTimeImmutable $createdAt,
         ?User $user = null
     ) {
         $this->id = $id;
@@ -28,7 +28,7 @@ final class PasswordReset
         $this->userId = $userId;
         $this->expiresAt = $expiresAt;
         $this->used = $used;
-        $this->createdAt = $createdAt ?? new DateTimeImmutable();
+        $this->createdAt = $createdAt;
         $this->user = $user;
     }
 

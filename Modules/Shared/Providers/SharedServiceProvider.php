@@ -16,6 +16,16 @@ use Modules\Shared\Application\Repositories\IRolePermissionRepository;
 use Modules\Shared\Infrastructure\Repositories\EloquentRolePermissionRepository;
 use Modules\Shared\Application\Repositories\ITranslationRepository;
 use Modules\Shared\Infrastructure\Repositories\EloquentTranslationRepository;
+use Modules\Shared\Application\Repositories\IMailRepository;
+use Modules\Shared\Infrastructure\Repositories\EloquentMailRepository;
+use Modules\Shared\Infrastructure\Services\MailService;
+use Modules\Shared\Application\Services\IMailService;
+use Modules\Shared\Application\Repositories\IPasswordResetRepository;
+use Modules\Shared\Infrastructure\Repositories\EloquentPasswordResetRepository;
+use Modules\Shared\Infrastructure\Services\PasswordResetService;
+use Modules\Shared\Application\Services\IPasswordResetService;
+
+
 
 class SharedServiceProvider extends ServiceProvider
 {
@@ -49,6 +59,11 @@ class SharedServiceProvider extends ServiceProvider
         // Bind translation repository & service
         $this->app->bind(ITranslationRepository::class, EloquentTranslationRepository::class);
         $this->app->bind(ITranslationService::class, TranslationService::class);
+
+        $this->app->bind(IPasswordResetRepository::class, EloquentPasswordResetRepository::class);
+        $this->app->bind(IPasswordResetService::class, PasswordResetService::class);
+        $this->app->bind(IMailRepository::class, EloquentMailRepository::class);
+        $this->app->bind(IMailService::class, MailService::class);
     }
 
     protected function registerConfig(): void

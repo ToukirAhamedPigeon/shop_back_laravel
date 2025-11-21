@@ -23,7 +23,7 @@ class EloquentPasswordResetRepository implements IPasswordResetRepository
         return EloquentPasswordReset::where('user_id', $userId)
             ->orderByDesc('created_at')
             ->get()
-            ->map(fn($m) => $this->mapToEntity($m))
+            ->map(fn ($m) => $this->mapToEntity($m))
             ->toArray();
     }
 
@@ -39,6 +39,20 @@ class EloquentPasswordResetRepository implements IPasswordResetRepository
         return $this->mapToEntity($model);
     }
 
+    public function update(PasswordResetEntity $passwordReset): PasswordResetEntity
+    {
+        $model = EloquentPasswordReset::findOrFail($passwordReset->id);
+
+        $model->token = $passwordReset->token;
+        $model->user_id = $passwordReset->userId;
+        $model->expires_at = $passwordReset->expiresAt->format('Y-m-d H:i:s');
+        $model->used = $passwordReset->used;
+
+        $model->save();
+
+        return $this->mapToEntity($model);
+    }
+
     public function markUsed(PasswordResetEntity $passwordReset): void
     {
         EloquentPasswordReset::where('id', $passwordReset->id)
@@ -48,12 +62,12 @@ class EloquentPasswordResetRepository implements IPasswordResetRepository
     private function mapToEntity(EloquentPasswordReset $model): PasswordResetEntity
     {
         return new PasswordResetEntity(
-            $model->id,
-            $model->token,
-            $model->user_id,
-            new DateTimeImmutable($model->expires_at),
-            $model->used,
-            new DateTimeImmutable($model->created_at)
+            id: $model->id,
+            token: $model->token,
+            userId: $model->user_id,
+            expiresAt: new DateTimeImmutable($model->expires_at),
+            used: $model->used,
+            createdAt: new DateTimeImmutable($model->created_at)
         );
     }
 }

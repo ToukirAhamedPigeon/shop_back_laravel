@@ -13,7 +13,7 @@ final class Otp
     public DateTimeImmutable $expiresAt;
     public bool $used;
     public int $attempts;
-    public string $userId;
+    public string $userId; // GUID
     public DateTimeImmutable $createdAt;
     public DateTimeImmutable $updatedAt;
 
@@ -25,11 +25,11 @@ final class Otp
         string $codeHash,
         string $purpose,
         DateTimeImmutable $expiresAt,
-        bool $used = false,
-        int $attempts = 0,
+        bool $used,
+        int $attempts,
         string $userId,
-        ?DateTimeImmutable $createdAt = null,
-        ?DateTimeImmutable $updatedAt = null,
+        DateTimeImmutable $createdAt,
+        DateTimeImmutable $updatedAt,
         ?User $user = null
     ) {
         $this->id = $id;
@@ -40,8 +40,8 @@ final class Otp
         $this->used = $used;
         $this->attempts = $attempts;
         $this->userId = $userId;
-        $this->createdAt = $createdAt ?? new DateTimeImmutable();
-        $this->updatedAt = $updatedAt ?? new DateTimeImmutable();
+        $this->createdAt = $createdAt;
+        $this->updatedAt = $updatedAt;
         $this->user = $user;
     }
 

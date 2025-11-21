@@ -10,8 +10,8 @@ class EloquentPasswordReset extends Model
     protected $table = 'password_reset';
     protected $primaryKey = 'id';
     public $incrementing = true;
-    protected $keyType = 'int';
-    public $timestamps = false; // No updated_at column
+    protected $keyType = 'int'; // BIGINT UNSIGNED
+    public $timestamps = false;
 
     protected $fillable = [
         'token',
@@ -27,28 +27,8 @@ class EloquentPasswordReset extends Model
         'created_at' => 'datetime',
     ];
 
-    /**
-     * PasswordReset belongs to a user
-     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(EloquentUser::class, 'user_id', 'id');
-    }
-
-    /**
-     * Mark reset token as used.
-     */
-    public function markUsed(): void
-    {
-        $this->used = true;
-        $this->save();
-    }
-
-    /**
-     * Check if reset token is expired.
-     */
-    public function isExpired(): bool
-    {
-        return $this->expires_at->isPast();
     }
 }

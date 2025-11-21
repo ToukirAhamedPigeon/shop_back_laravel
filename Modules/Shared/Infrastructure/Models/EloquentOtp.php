@@ -10,7 +10,7 @@ class EloquentOtp extends Model
     protected $table = 'otp';
     protected $primaryKey = 'id';
     public $incrementing = true;
-    protected $keyType = 'int';
+    protected $keyType = 'int'; // BIGINT UNSIGNED in DB
     public $timestamps = true;
 
     protected $fillable = [
@@ -21,8 +21,6 @@ class EloquentOtp extends Model
         'used',
         'attempts',
         'user_id',
-        'created_at',
-        'updated_at',
     ];
 
     protected $casts = [
@@ -33,37 +31,8 @@ class EloquentOtp extends Model
         'updated_at' => 'datetime',
     ];
 
-    /**
-     * OTP belongs to a user
-     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(EloquentUser::class, 'user_id', 'id');
-    }
-
-    /**
-     * Mark OTP as used.
-     */
-    public function markUsed(): void
-    {
-        $this->used = true;
-        $this->save();
-    }
-
-    /**
-     * Increment OTP attempt count.
-     */
-    public function incrementAttempts(): void
-    {
-        $this->attempts++;
-        $this->save();
-    }
-
-    /**
-     * Check if the OTP is expired.
-     */
-    public function isExpired(): bool
-    {
-        return $this->expires_at->isPast();
     }
 }
