@@ -27,7 +27,7 @@ class AuthController extends Controller
         if (!$result) {
             return response()->json(['message' => 'Invalid credentials'], 401);
         }
-
+        $secure = app()->environment('production');
         return response()
             ->json([
                 'accessToken' => $result->accessToken,
@@ -35,15 +35,15 @@ class AuthController extends Controller
                 'user' => $result->toArray()['user'],
             ])
             ->cookie(
-                'refreshToken',
+        'refreshToken',
                 $result->refreshToken,
-                60 * 24 * 7,  // 7 days
+                60*24*7,
                 '/',
                 null,
-                config('app.env') === 'production', // secure only on production
-                true, // httpOnly
+                $secure,
+                true,
                 false,
-                'Lax' // SameSite
+                $secure ? 'None' : 'Lax'
             );
     }
 
@@ -64,7 +64,7 @@ class AuthController extends Controller
         if (!$result) {
             return response()->json(['message' => 'Invalid or expired refresh token'], 401);
         }
-
+        $secure = app()->environment('production');
         return response()
             ->json([
                 'accessToken' => $result->accessToken,
@@ -72,15 +72,15 @@ class AuthController extends Controller
                 'user' => $result->toArray()['user'],
             ])
             ->cookie(
-                'refreshToken',
+        'refreshToken',
                 $result->refreshToken,
-                60 * 24 * 7, // 7 days
+                60*24*7,
                 '/',
                 null,
-                config('app.env') === 'production',
+                $secure,
                 true,
                 false,
-                'Lax'
+                $secure ? 'None' : 'Lax'
             );
     }
 

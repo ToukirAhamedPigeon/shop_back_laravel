@@ -15,26 +15,41 @@ final class UserLog
     public string $createdBy;
     public DateTimeImmutable $createdAt;
     public int $createdAtId;
+    public ?string $ipAddress;
+    public ?string $browser;
+    public ?string $device;
+    public ?string $operatingSystem;
+    public ?string $userAgent;
 
     public function __construct(
         string $id,
         string $actionType,
         string $modelName,
         string $createdBy,
+        DateTimeImmutable $createdAt,
         int $createdAtId,
         ?string $detail = null,
         ?string $changes = null,
         ?string $modelId = null,
-        ?DateTimeImmutable $createdAt = null
+        ?string $ipAddress = null,
+        ?string $browser = null,
+        ?string $device = null,
+        ?string $operatingSystem = null,
+        ?string $userAgent = null
     ) {
         $this->id = $id;
-        $this->detail = $detail;
-        $this->changes = $changes;
         $this->actionType = $actionType;
         $this->modelName = $modelName;
-        $this->modelId = $modelId;
         $this->createdBy = $createdBy;
-        $this->createdAt = $createdAt ?? new DateTimeImmutable();
+        $this->createdAt = $createdAt;
         $this->createdAtId = $createdAtId;
+        $this->detail = $detail;
+        $this->changes = $changes;
+        $this->modelId = $modelId;
+        $this->ipAddress = $ipAddress;
+        $this->browser = $browser;
+        $this->device = $device;
+        $this->operatingSystem = $operatingSystem;
+        $this->userAgent = $userAgent;
     }
 }

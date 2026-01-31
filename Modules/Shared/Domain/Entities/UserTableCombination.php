@@ -18,14 +18,14 @@ final class UserTableCombination
         string $tableId,
         array $showColumnCombinations,
         string $userId,
-        ?string $updatedBy = null,
-        ?DateTimeImmutable $updatedAt = null
+        ?string $updatedBy,
+        DateTimeImmutable $updatedAt
     ) {
         $this->id = $id;
         $this->tableId = $tableId;
         $this->showColumnCombinations = $showColumnCombinations;
         $this->userId = $userId;
         $this->updatedBy = $updatedBy;
-        $this->updatedAt = $updatedAt ?? new DateTimeImmutable();
+        $this->updatedAt = $updatedAt;
     }
 }

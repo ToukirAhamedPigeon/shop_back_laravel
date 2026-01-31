@@ -22,20 +22,20 @@ class PermissionFilterService implements IPermissionFilter
     public function handle(Request $request, Closure $next, ...$params)
     {
         $user = $request->user();
-
         if (!$user) {
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
         // Ensure permissions are an array (comma-separated string allowed)
-        $permissions = $params[0] ?? [];
-        if (is_string($permissions)) {
-            $permissions = explode(',', $permissions);
+        $relationString = $params[0] ?? 'any';
+        $permissions = $params;
+        if (is_array($permissions) && count($permissions) > 1) {
+            array_shift($permissions);
+            $permissions = array_map('trim', $permissions);
         }
-
         // Map raw string relation -> enum
-        $relationString = $params[1] ?? 'or';
-        $relation = strtolower($relationString) === 'and' ? 'and' : 'or';
+
+        $relation = strtolower($relationString) === 'all' ? 'and' : 'or';
         $requirement = new PermissionRequirement($permissions, $relation);
 
         if (!$this->permissionService->handle((string) $user->id, $requirement)) {

@@ -8,49 +8,48 @@ use Modules\Shared\Application\Repositories\IPasswordResetRepository;
 use Modules\Shared\Application\Services\IMailService;
 use Modules\Shared\Application\Requests\Auth\ResetPasswordRequest;
 use Modules\Shared\Domain\Entities\PasswordReset;
+use Modules\Shared\Infrastructure\Helpers\UserLogHelper;
 use DateTimeImmutable;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Exception;
+use Illuminate\Support\Facades\Log;
 
 class PasswordResetService implements IPasswordResetService
 {
     private IUserRepository $userRepository;
     private IPasswordResetRepository $passwordResetRepository;
     private IMailService $mailService;
+    private UserLogHelper $userLogHelper;
 
     public function __construct(
         IUserRepository $userRepository,
         IPasswordResetRepository $passwordResetRepository,
-        IMailService $mailService
+        IMailService $mailService,
+        UserLogHelper $userLogHelper
     ) {
         $this->userRepository = $userRepository;
         $this->passwordResetRepository = $passwordResetRepository;
         $this->mailService = $mailService;
+        $this->userLogHelper = $userLogHelper;
     }
 
     /**
-     * ---------------------------------------------------------
-     *  REQUEST PASSWORD RESET  (Equivalent to .NET)
-     * ---------------------------------------------------------
+     * Request password reset
      */
     public function requestPasswordReset(string $email): void
     {
-        // Find user by email
         $user = $this->userRepository->findByEmail($email);
 
         if (!$user) {
             throw new Exception("Email not registered.");
         }
 
-        // Generate secure token (same as .NET RandomNumberGenerator 32 bytes)
         $token = bin2hex(random_bytes(32));
-
-        // Create password reset entity
         $expiresAt = new DateTimeImmutable("+1 hour");
 
         $resetEntity = new PasswordReset(
-            id: 0, // auto increment
+            id: 0,
             token: $token,
             userId: $user->id,
             expiresAt: $expiresAt,
@@ -58,14 +57,11 @@ class PasswordResetService implements IPasswordResetService
             createdAt: new DateTimeImmutable()
         );
 
-        // Save in DB
         $savedReset = $this->passwordResetRepository->create($resetEntity);
 
-        // Make reset link (Laravel env equivalent)
         $frontendAdminUrl = env('FrontendAdminUrl');
         $resetLink = "{$frontendAdminUrl}/reset-password/{$token}";
 
-        // Email body
         $bodyContent = "
             <h2>Password Reset Request</h2>
             <p>Hello {$user->name},</p>
@@ -81,7 +77,6 @@ class PasswordResetService implements IPasswordResetService
             $bodyContent
         );
 
-        // Send email
         $mail = new \Modules\Shared\Domain\Entities\Mail(
             id: 0,
             fromMail: "noreply@shop.com",
@@ -91,32 +86,39 @@ class PasswordResetService implements IPasswordResetService
             moduleName: "Auth",
             purpose: "PasswordReset",
             createdBy: $user->id,
-            attachments: [] // optional attachments like .NET
+            attachments: []
         );
 
         $this->mailService->sendEmail($mail);
+
+        // ---------------------------------------------------------
+        // ✅ USER LOG: Password Reset Requested
+        // ---------------------------------------------------------
+        try {
+            $this->userLogHelper->log(
+                actionType: "Create",
+                detail: "User requested password reset.",
+                changes: null,
+                modelName: "PasswordReset",
+                modelId: $savedReset->id
+            );
+        } catch (\Exception $ex) {
+            // Avoid breaking flow if logging fails
+           Log::error("UserLog Error (RequestPasswordReset): " . $ex->getMessage());
+        }
     }
 
     /**
-     * ---------------------------------------------------------
-     *  VALIDATE TOKEN  (Equivalent to .NET ValidateTokenAsync)
-     * ---------------------------------------------------------
+     * Validate token
      */
     public function validateToken(string $token): bool
     {
         $reset = $this->passwordResetRepository->findByToken($token);
-
-        if (!$reset) return false;
-        if ($reset->used) return false;
-        if ($reset->isExpired()) return false;
-
-        return true;
+        return $reset && !$reset->used && !$reset->isExpired();
     }
 
     /**
-     * ---------------------------------------------------------
-     *  RESET PASSWORD  (Equivalent to .NET ResetPasswordAsync)
-     * ---------------------------------------------------------
+     * Reset user password
      */
     public function resetPassword(ResetPasswordRequest $request): void
     {
@@ -129,19 +131,41 @@ class PasswordResetService implements IPasswordResetService
             throw new Exception("Invalid or expired token.");
         }
 
-        // Find user
         $user = $this->userRepository->findById($reset->userId);
 
         if (!$user) {
             throw new Exception("User not found.");
         }
 
-        // Update password (BCrypt in Laravel)
+        // 🟡 Store old password hash
+        $oldPasswordHash = $user->password;
+
+        // 🔐 Hash new password
         $user->password = Hash::make($password);
         $this->userRepository->update($user);
 
         // Mark token used
         $reset->markUsed();
         $this->passwordResetRepository->update($reset);
+
+        // ---------------------------------------------------------
+        // ✅ USER LOG: Password Reset Completed
+        // ---------------------------------------------------------
+        $changes = [
+            'before' => ['password' => $oldPasswordHash],
+            'after'  => ['password' => $user->password]
+        ];
+
+        try {
+            $this->userLogHelper->log(
+                actionType: "Update",
+                detail: "User successfully reset password.",
+                changes: $changes,
+                modelName: "User",
+                modelId: $user->id
+            );
+        } catch (\Exception $ex) {
+            Log::error("UserLog Error (ResetPassword): " . $ex->getMessage());
+        }
     }
 }

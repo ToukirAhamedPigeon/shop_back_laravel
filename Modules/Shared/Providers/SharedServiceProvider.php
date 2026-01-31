@@ -21,11 +21,19 @@ use Modules\Shared\Infrastructure\Repositories\EloquentMailRepository;
 use Modules\Shared\Infrastructure\Services\MailService;
 use Modules\Shared\Application\Services\IMailService;
 use Modules\Shared\Application\Repositories\IPasswordResetRepository;
+use Modules\Shared\Application\Repositories\IUserLogRepository;
+use Modules\Shared\Application\Repositories\IUserTableCombinationRepository;
 use Modules\Shared\Infrastructure\Repositories\EloquentPasswordResetRepository;
 use Modules\Shared\Infrastructure\Services\PasswordResetService;
 use Modules\Shared\Application\Services\IPasswordResetService;
-
-
+use Modules\Shared\Application\Services\IUserLogService;
+use Modules\Shared\Application\Services\IUserTableCombinationService;
+use Modules\Shared\Infrastructure\Services\UserLogService;
+use Modules\Shared\Infrastructure\Repositories\EloquentUserLogRepository;
+use Modules\Shared\Infrastructure\Repositories\EloquentUserTableCombinationRepository;
+use Modules\Shared\Infrastructure\Services\UserTableCombinationService;
+use Modules\Shared\Application\Services\Authorization\IPermissionHandlerService;
+use Modules\Shared\Infrastructure\Services\Authorization\PermissionHandlerService;
 
 class SharedServiceProvider extends ServiceProvider
 {
@@ -55,6 +63,7 @@ class SharedServiceProvider extends ServiceProvider
         $this->app->bind(IUserRepository::class, EloquentUserRepository::class);
         $this->app->bind(IRefreshTokenRepository::class, EloquentRefreshTokenRepository::class);
         $this->app->bind(IRolePermissionRepository::class, EloquentRolePermissionRepository::class);
+        $this->app->bind(IPermissionHandlerService::class, PermissionHandlerService::class);
 
         // Bind translation repository & service
         $this->app->bind(ITranslationRepository::class, EloquentTranslationRepository::class);
@@ -64,6 +73,10 @@ class SharedServiceProvider extends ServiceProvider
         $this->app->bind(IPasswordResetService::class, PasswordResetService::class);
         $this->app->bind(IMailRepository::class, EloquentMailRepository::class);
         $this->app->bind(IMailService::class, MailService::class);
+        $this->app->bind(IUserLogRepository::class, EloquentUserLogRepository::class);
+        $this->app->bind(IUserLogService::class, UserLogService::class);
+        $this->app->bind(IUserTableCombinationRepository::class, EloquentUserTableCombinationRepository::class);
+        $this->app->bind(IUserTableCombinationService::class, UserTableCombinationService::class);
     }
 
     protected function registerConfig(): void

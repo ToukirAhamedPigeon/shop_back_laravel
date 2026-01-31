@@ -12,10 +12,23 @@ class EloquentUserLog extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'id', 'detail', 'changes', 'action_type', 'model_name', 'model_id', 'created_by', 'created_at', 'created_at_id'
+        'id',
+        'detail',
+        'changes',
+        'action_type',
+        'model_name',
+        'model_id',
+        'created_by',
+        'created_at',
+        'created_at_id',
+        'ip_address',
+        'browser',
+        'device',
+        'os',
+        'user_agent',
     ];
 
     protected $casts = [
-        'created_at' => 'datetime'
+        'created_at' => 'datetime',
     ];
 }

@@ -4,13 +4,13 @@ namespace Modules\Shared\Infrastructure\Services\Authorization;
 
 use Modules\Shared\Application\Services\Authorization\IPermissionHandlerService;
 use Modules\Shared\Application\Services\Authorization\IPermissionRequirement;
-use App\Models\User;
+use Modules\Shared\Infrastructure\Models\EloquentUser;
 
 class PermissionHandlerService implements IPermissionHandlerService
 {
     public function handle(string $userId, IPermissionRequirement $requirement): bool
     {
-        $user = User::find($userId);
+        $user = EloquentUser::find($userId);
 
         if (!$user) {
             return false;

@@ -7,10 +7,11 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Laravel\Passport\HasApiTokens;
+use Spatie\Permission\Traits\HasRoles;
 
 class EloquentUser extends Authenticatable
 {
-    use HasApiTokens, Notifiable;
+    use HasApiTokens, Notifiable, HasRoles;
 
     protected $table = 'users';
     protected $keyType = 'string';
@@ -75,4 +76,57 @@ class EloquentUser extends Authenticatable
 
         return array_values($permissions);
     }
+    /**
+     * Check if user has ANY of the given permissions
+    */
+    public function hasAnyPermission(array $permissions): bool
+    {
+        // Direct permissions
+        if ($this->permissions()
+            ->whereIn('name', $permissions)
+            ->exists()
+        ) {
+            return true;
+        }
+
+        // Role-based permissions
+        foreach ($this->roles as $role) {
+            foreach ($role->permissions as $permission) {
+                if (in_array($permission->name, $permissions, true)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if user has ALL of the given permissions
+     */
+    public function hasAllPermissions(array $permissions): bool
+    {
+        $userPermissions = [];
+
+        // Direct permissions
+        foreach ($this->permissions as $permission) {
+            $userPermissions[$permission->name] = true;
+        }
+
+        // Role permissions
+        foreach ($this->roles as $role) {
+            foreach ($role->permissions as $permission) {
+                $userPermissions[$permission->name] = true;
+            }
+        }
+
+        foreach ($permissions as $required) {
+            if (!isset($userPermissions[$required])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
 }

@@ -10,17 +10,23 @@ use Modules\Shared\Application\Resources\Auth\UserResource;
 use Modules\Shared\Domain\Entities\RefreshToken;
 use Modules\Shared\Application\Repositories\IUserRepository;
 use Modules\Shared\Application\Repositories\IRefreshTokenRepository;
+use Modules\Shared\Infrastructure\Helpers\UserLogHelper;
 use Carbon\Carbon;
 
 class AuthService implements IAuthService
 {
     private IUserRepository $userRepo;
     private IRefreshTokenRepository $refreshTokenRepo;
+    private UserLogHelper $userLogHelper;
 
-    public function __construct(IUserRepository $userRepo, IRefreshTokenRepository $refreshTokenRepo)
-    {
+    public function __construct(
+        IUserRepository $userRepo,
+        IRefreshTokenRepository $refreshTokenRepo,
+        UserLogHelper $userLogHelper
+    ) {
         $this->userRepo = $userRepo;
         $this->refreshTokenRepo = $refreshTokenRepo;
+        $this->userLogHelper = $userLogHelper;
     }
 
     /**
@@ -34,25 +40,33 @@ class AuthService implements IAuthService
             return null;
         }
 
-        // 1️⃣ Short-lived Passport access token (default 15 min)
+        // Access token (short-lived)
         $accessToken = $this->userRepo->createAccessToken($user, 'API Token');
 
-        // 2️⃣ Long-lived refresh token (7 days)
+        // Refresh token (long-lived)
         $refreshToken = new RefreshToken(
             id: Str::uuid()->toString(),
             token: Str::uuid()->toString(),
             expiresAt: Carbon::now()->addDays(7)->toDateTimeImmutable(),
             userId: $user->id
         );
-
         $this->refreshTokenRepo->create($refreshToken);
         $this->refreshTokenRepo->removeExpired();
+
+        // ✅ Log login with explicit userId
+        $this->userLogHelper->log(
+            actionType: 'Login',
+            detail: "User '{$user->name}' logged in successfully.",
+            modelName: 'User',
+            modelId: $user->id,
+            userId: $user->id // Explicitly pass user ID
+        );
 
         return new AuthResource($accessToken, $refreshToken->token, $user, $refreshToken->expiresAt);
     }
 
     /**
-     * Get authenticated user from access token
+     * Get authenticated user
      */
     public function me(): ?UserResource
     {
@@ -87,22 +101,40 @@ class AuthService implements IAuthService
         $this->refreshTokenRepo->create($newRefreshToken);
         $this->refreshTokenRepo->revoke($refreshToken);
 
+        // // ✅ Log refresh token with explicit userId
+        $this->userLogHelper->log(
+            actionType: 'RefreshToken',
+            detail: "User '{$user->name}' refreshed access token.",
+            modelName: 'User',
+            modelId: $user->id,
+            userId: $user->id
+        );
+
         return new AuthResource($accessToken, $newRefreshToken->token, $user, $newRefreshToken->expiresAt);
     }
 
     /**
-     * Logout (revoke single refresh token + access token)
+     * Logout (revoke single refresh token)
      */
     public function logout(string $refreshTokenString): void
     {
         $refreshToken = $this->refreshTokenRepo->findValidToken($refreshTokenString);
         if ($refreshToken) {
             $this->refreshTokenRepo->revoke($refreshToken);
-        }
 
-        $userId = $refreshToken?->userId;
-        if ($userId) {
-            $this->userRepo->revokeOtherAccessTokens($userId, ''); // revoke current token only
+            $userId = $refreshToken->userId;
+            $user = $this->userRepo->findById($userId);
+
+            // ✅ Log logout with explicit userId
+            $this->userLogHelper->log(
+                actionType: 'Logout',
+                detail: "User '{$user?->name}' logged out successfully.",
+                modelName: 'User',
+                modelId: $userId,
+                userId: $userId
+            );
+
+            $this->userRepo->revokeOtherAccessTokens($userId, '');
         }
     }
 
@@ -111,8 +143,19 @@ class AuthService implements IAuthService
      */
     public function logoutAllDevices(string $userId): void
     {
+        $user = $this->userRepo->findById($userId);
+
         $this->refreshTokenRepo->revokeAll($userId);
         $this->userRepo->revokeAllAccessTokens($userId);
+
+        // ✅ Log logout all devices with explicit userId
+        $this->userLogHelper->log(
+            actionType: 'LogoutAllDevices',
+            detail: "User '{$user?->name}' logged out from all devices.",
+            modelName: 'User',
+            modelId: $userId,
+            userId: $userId
+        );
     }
 
     /**
@@ -120,6 +163,17 @@ class AuthService implements IAuthService
      */
     public function logoutOtherDevices(string $exceptRefreshToken, string $userId): void
     {
+        $user = $this->userRepo->findById($userId);
+
         $this->refreshTokenRepo->revokeOther($exceptRefreshToken, $userId);
+
+        // ✅ Log logout other devices with explicit userId
+        $this->userLogHelper->log(
+            actionType: 'LogoutOtherDevices',
+            detail: "User '{$user?->name}' logged out from other devices except current.",
+            modelName: 'User',
+            modelId: $userId,
+            userId: $userId
+        );
     }
 }
