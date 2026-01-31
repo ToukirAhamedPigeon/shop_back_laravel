@@ -69,11 +69,11 @@ Route::middleware('auth:api')->group(function () {
     |-----------------------------
     */
     Route::prefix('UserLog')->group(function () {
-        Route::post('/', [UserLogController::class, 'getFiltered']);
-        Route::get('/{id}', [UserLogController::class, 'get']);
-        Route::post('/collections', [UserLogController::class, 'collections']);
-        Route::post('/action-types', [UserLogController::class, 'actionTypes']);
-        Route::post('/creators', [UserLogController::class, 'creators']);
+        Route::post('/', [UserLogController::class, 'getFiltered'])->middleware('permission:any,read-admin-dashboard');
+        Route::get('/{id}', [UserLogController::class, 'get'])->middleware('permission:any,read-admin-dashboard');
+        Route::post('/collections', [UserLogController::class, 'collections'])->middleware('permission:any,read-admin-dashboard');
+        Route::post('/action-types', [UserLogController::class, 'actionTypes'])->middleware('permission:any,read-admin-dashboard');
+        Route::post('/creators', [UserLogController::class, 'creators'])->middleware('permission:any,read-admin-dashboard');
     });
 
     /*
