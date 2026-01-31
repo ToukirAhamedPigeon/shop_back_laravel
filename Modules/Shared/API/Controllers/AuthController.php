@@ -64,7 +64,9 @@ class AuthController extends Controller
         if (!$result) {
             return response()->json(['message' => 'Invalid or expired refresh token'], 401);
         }
+
         $secure = app()->environment('production');
+
         return response()
             ->json([
                 'accessToken' => $result->accessToken,
@@ -73,8 +75,8 @@ class AuthController extends Controller
             ])
             ->cookie(
         'refreshToken',
-                $result->refreshToken,
-                60*24*7,
+                $refreshToken,
+                60 * 24 * 7,
                 '/',
                 null,
                 $secure,

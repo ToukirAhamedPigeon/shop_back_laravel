@@ -91,15 +91,15 @@ class AuthService implements IAuthService
         $accessToken = $this->userRepo->createAccessToken($user, 'API Token');
 
         // Issue new refresh token
-        $newRefreshToken = new RefreshToken(
-            id: Str::uuid()->toString(),
-            token: Str::uuid()->toString(),
-            expiresAt: Carbon::now()->addDays(7)->toDateTimeImmutable(),
-            userId: $user->id
-        );
+        // $newRefreshToken = new RefreshToken(
+        //     id: Str::uuid()->toString(),
+        //     token: Str::uuid()->toString(),
+        //     expiresAt: Carbon::now()->addDays(7)->toDateTimeImmutable(),
+        //     userId: $user->id
+        // );
 
-        $this->refreshTokenRepo->create($newRefreshToken);
-        $this->refreshTokenRepo->revoke($refreshToken);
+        // $this->refreshTokenRepo->create($newRefreshToken);
+        // $this->refreshTokenRepo->revoke($refreshToken);
 
         // // ✅ Log refresh token with explicit userId
         $this->userLogHelper->log(
@@ -110,7 +110,7 @@ class AuthService implements IAuthService
             userId: $user->id
         );
 
-        return new AuthResource($accessToken, $newRefreshToken->token, $user, $newRefreshToken->expiresAt);
+        return new AuthResource($accessToken, $refreshToken->token, $user, $refreshToken->expiresAt);
     }
 
     /**
