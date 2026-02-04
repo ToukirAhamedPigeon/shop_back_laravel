@@ -148,4 +148,14 @@ class UserLogHelper
 
         return [$browser, $os, $device];
     }
+
+    /**
+     * Get client IP address.
+     *
+     * @return string|null
+     */
+    public function getClientIp(): ?string
+    {
+        return request()->ip();
+    }
 }

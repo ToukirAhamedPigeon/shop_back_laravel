@@ -19,15 +19,49 @@ class EloquentUser extends Authenticatable
     public $timestamps = true;
 
     protected $fillable = [
-        'id', 'name', 'username', 'email', 'password', 'mobile_no', 'is_active', 'is_deleted','remember_token','email_verified_at'
+        'id',
+        'name',
+        'username',
+        'email',
+        'password',
+
+        'profile_image',
+        'bio',
+        'date_of_birth',
+        'gender',
+        'address',
+
+        'mobile_no',
+        'email_verified_at',
+
+        'qr_code',
+
+        'remember_token',
+        'last_login_at',
+        'last_login_ip',
+
+        'timezone',
+        'language',
+
+        'is_active',
+        'is_deleted',
+        'deleted_at',
+
+        'created_by',
+        'updated_by'
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'is_deleted' => 'boolean',
+
+        'date_of_birth' => 'datetime',
+        'email_verified_at' => 'datetime',
+        'last_login_at' => 'datetime',
+        'deleted_at' => 'datetime',
+
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
-        'email_verified_at' => 'datetime',
     ];
 
     /**
@@ -125,7 +159,6 @@ class EloquentUser extends Authenticatable
                 return false;
             }
         }
-
         return true;
     }
 

@@ -39,6 +39,8 @@ class AuthService implements IAuthService
         if (!$user || !password_verify($request->password, $user->password)) {
             return null;
         }
+        $user->updateLastLogin($this->userLogHelper->getClientIp());
+        $this->userRepo->update($user);
 
         // Access token (short-lived)
         $accessToken = $this->userRepo->createAccessToken($user, 'API Token');
