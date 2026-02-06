@@ -1,109 +1,42 @@
 <?php
 
-namespace Modules\Shared\Application\Resources\Auth;
+namespace Modules\Shared\Application\Resources\Users;
 
-use Modules\Shared\Domain\Entities\User as UserEntity;
+use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Carbon;
 
-class UserResource
+class UserResource extends JsonResource
 {
-    public string $id;
-    public string $name;
-    public string $username;
-    public string $email;
-    public ?string $mobileNo;
-
-    public bool $isActive;
-
-    /** @var string[] */
-    public array $roles;
-
-    /** @var string[] */
-    public array $permissions;
-
-    // Profile
-    public ?string $profileImage;
-    public ?string $bio;
-    public ?string $gender;
-    public ?string $address;
-    public ?string $dateOfBirth;
-
-    // QR
-    public ?string $qrCode;
-
-    // Preferences
-    public ?string $timezone;
-    public ?string $language;
-
-    // Audit / Auth info
-    public ?string $lastLoginAt;
-    public ?string $lastLoginIp;
-    public ?string $emailVerifiedAt;
-
-    public function __construct(UserEntity $user)
-    {
-        $this->id = $user->id;
-        $this->name = $user->name;
-        $this->username = $user->username;
-        $this->email = $user->email;
-        $this->mobileNo = $user->mobileNo;
-
-        $this->isActive = $user->isActive;
-
-        $this->roles = $user->roles ?? [];
-        $this->permissions = $user->permissions ?? [];
-
-        // Profile
-        $this->profileImage = $user->profileImage;
-        $this->bio = $user->bio;
-        $this->gender = $user->gender;
-        $this->address = $user->address;
-        $this->dateOfBirth = $user->dateOfBirth?->format('Y-m-d');
-
-        // QR
-        $this->qrCode = $user->qrCode;
-
-        // Preferences
-        $this->timezone = $user->timezone;
-        $this->language = $user->language;
-
-        // Audit / Auth
-        $this->lastLoginAt = $user->lastLoginAt?->format('Y-m-d H:i:s');
-        $this->lastLoginIp = $user->lastLoginIp;
-        $this->emailVerifiedAt = $user->emailVerifiedAt?->format('Y-m-d H:i:s');
-    }
-
-    public function toArray(): array
+    public function toArray($request): array
     {
         return [
             'id' => $this->id,
+
             'name' => $this->name,
             'username' => $this->username,
             'email' => $this->email,
-            'mobile_no' => $this->mobileNo,
+            'mobileNo' => $this->mobile_no,
 
-            'is_active' => $this->isActive,
-
-            'roles' => $this->roles,
-            'permissions' => $this->permissions,
-
-            // Profile
-            'profile_image' => $this->profileImage,
+            'profileImage' => $this->profile_image,
             'bio' => $this->bio,
+            'dateOfBirth' => $this->date_of_birth
+                ? Carbon::parse($this->date_of_birth)->toISOString()
+                : null,
             'gender' => $this->gender,
             'address' => $this->address,
-            'date_of_birth' => $this->dateOfBirth,
 
-            // QR
-            'qr_code' => $this->qrCode,
+            'qrCode' => $this->qr_code,
 
-            // Preferences
             'timezone' => $this->timezone,
             'language' => $this->language,
 
-            // Audit / Auth
-            'last_login_at' => $this->lastLoginAt,
-            'last_login_ip' => $this->lastLoginIp,
-            'email_verified_at' => $this->emailVerifiedAt,
+            'isActive' => (bool)$this->is_active,
+
+            'createdAt' => Carbon::parse($this->created_at)->toISOString(),
+            'updatedAt' => Carbon::parse($this->updated_at)->toISOString(),
+
+            'roles' => $this->roles->pluck('name')->values(),
+            'permissions' => $this->getAllPermissionsAttribute(),
         ];
     }
 }

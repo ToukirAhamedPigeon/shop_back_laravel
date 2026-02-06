@@ -3,9 +3,13 @@
 namespace Modules\Shared\Infrastructure\Repositories;
 
 use Modules\Shared\Application\Repositories\IUserRepository;
+use Modules\Shared\Application\Requests\Users\UserFilterRequest;
 use Modules\Shared\Domain\Entities\User as UserEntity;
 use Modules\Shared\Infrastructure\Models\EloquentUser;
 use DateTimeImmutable;
+use Illuminate\Support\Facades\DB;
+use Modules\Shared\Application\Requests\Users\UserFilterRequest as UsersUserFilterRequest;
+use Modules\Shared\Application\Resources\Users\UserResource;
 
 class EloquentUserRepository implements IUserRepository
 {
@@ -203,5 +207,46 @@ class EloquentUserRepository implements IUserRepository
         roles: $roles,
         permissions: array_values($permissions)
     );
+    }
+
+    public function getFiltered(UserFilterRequest $req): array
+    {
+        $query = EloquentUser::query()
+            ->where('is_deleted', false);
+
+        if ($req->q) {
+            $query->where(function ($q) use ($req) {
+                $q->where('name', 'like', "%{$req->q}%")
+                  ->orWhere('username', 'like', "%{$req->q}%")
+                  ->orWhere('email', 'like', "%{$req->q}%");
+            });
+        }
+
+        if (!is_null($req->isActive)) {
+            $query->where('is_active', $req->isActive);
+        }
+
+        $total = $query->count();
+
+        $sortMap = [
+            'name' => 'name',
+            'email' => 'email',
+            'createdAt' => 'created_at',
+        ];
+
+        $sortBy = $sortMap[$req->sortBy] ?? 'created_at';
+
+        $users = $query
+            ->orderBy($sortBy, $req->sortOrder)
+            ->offset(($req->page - 1) * $req->limit)
+            ->limit($req->limit)
+            ->get();
+
+        return [
+            'users' => UserResource::collection($users),
+            'totalCount' => $total,
+            'pageIndex' => $req->page - 1,
+            'pageSize' => $req->limit,
+        ];
     }
 }

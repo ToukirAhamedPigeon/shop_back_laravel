@@ -2,12 +2,14 @@
 
 namespace Modules\Shared\Application\Repositories;
 
+use Modules\Shared\Application\Requests\Users\UserFilterRequest as UsersUserFilterRequest;
 use Modules\Shared\Domain\Entities\User;
 
 interface IUserRepository
 {
     public function getByIdentifier(string $identifier): ?User;
     public function findById(string $id): ?User;
+    public function getFiltered(UsersUserFilterRequest $request): array;
     public function findByEmail(string $email): ?User;
     public function findByUsername(string $username): ?User;
     public function create(User $user): User;

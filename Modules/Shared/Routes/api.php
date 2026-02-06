@@ -5,6 +5,7 @@ use Modules\Shared\API\Controllers\AuthController;
 use Modules\Shared\API\Controllers\TranslationsController;
 use Modules\Shared\API\Controllers\CsrfController;
 use Modules\Shared\API\Controllers\PasswordResetController;
+use Modules\Shared\API\Controllers\UserController;
 use Modules\Shared\API\Controllers\UserLogController;
 use Modules\Shared\API\Controllers\UserTableCombinationController;
 
@@ -74,6 +75,34 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/collections', [UserLogController::class, 'collections'])->middleware('permission:any,read-admin-dashboard');
         Route::post('/action-types', [UserLogController::class, 'actionTypes'])->middleware('permission:any,read-admin-dashboard');
         Route::post('/creators', [UserLogController::class, 'creators'])->middleware('permission:any,read-admin-dashboard');
+    });
+
+    Route::prefix('User')->group(function () {
+
+    Route::post(
+            '/',
+            [UserController::class, 'getFiltered']
+        )->middleware('permission:any,read-admin-dashboard');
+
+        Route::get(
+            '/{id}',
+            [UserController::class, 'get']
+        )->middleware('permission:any,read-admin-dashboard');
+
+        Route::post(
+            '/collections',
+            [UserController::class, 'collections']
+        )->middleware('permission:any,read-admin-dashboard');
+
+        Route::post(
+            '/roles',
+            [UserController::class, 'roles']
+        )->middleware('permission:any,read-admin-dashboard');
+
+        Route::post(
+            '/creators',
+            [UserController::class, 'creators']
+        )->middleware('permission:any,read-admin-dashboard');
     });
 
     /*
