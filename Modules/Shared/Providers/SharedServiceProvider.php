@@ -36,6 +36,8 @@ use Modules\Shared\Application\Services\Authorization\IPermissionHandlerService;
 use Modules\Shared\Application\Services\IUserService;
 use Modules\Shared\Application\Services\UserService;
 use Modules\Shared\Infrastructure\Services\Authorization\PermissionHandlerService;
+use Modules\Shared\Application\Services\IOptionsService;
+use Modules\Shared\Infrastructure\Services\OptionsService;
 
 class SharedServiceProvider extends ServiceProvider
 {
@@ -79,6 +81,7 @@ class SharedServiceProvider extends ServiceProvider
         $this->app->bind(IUserLogService::class, UserLogService::class);
         $this->app->bind(IUserRepository::class, EloquentUserRepository::class);
         $this->app->bind(IUserService::class, UserService::class);
+        $this->app->bind(IOptionsService::class, OptionsService::class);
         $this->app->bind(IUserTableCombinationRepository::class, EloquentUserTableCombinationRepository::class);
         $this->app->bind(IUserTableCombinationService::class, UserTableCombinationService::class);
     }

@@ -23,18 +23,18 @@ class UserLogController extends Controller
         return $log ? response()->json($log) : response()->json([], 404);
     }
 
-    public function collections(SelectOptionRequest $req): JsonResponse
-    {
-        return response()->json($this->service->getCollections($req));
-    }
+    // public function collections(SelectOptionRequest $req): JsonResponse
+    // {
+    //     return response()->json($this->service->getCollections($req));
+    // }
 
-    public function actionTypes(SelectOptionRequest $req): JsonResponse
-    {
-        return response()->json($this->service->getActionTypes($req));
-    }
+    // public function actionTypes(SelectOptionRequest $req): JsonResponse
+    // {
+    //     return response()->json($this->service->getActionTypes($req));
+    // }
 
-    public function creators(SelectOptionRequest $req): JsonResponse
-    {
-        return response()->json($this->service->getCreators($req));
-    }
+    // public function creators(SelectOptionRequest $req): JsonResponse
+    // {
+    //     return response()->json($this->service->getCreators($req));
+    // }
 }

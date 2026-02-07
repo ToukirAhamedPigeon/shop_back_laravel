@@ -2,6 +2,7 @@
 
 namespace Modules\Shared\Application\Resources\Auth;
 
+use Modules\Shared\Application\Resources\User\UserResource;
 use Modules\Shared\Domain\Entities\User;
 
 class AuthResource

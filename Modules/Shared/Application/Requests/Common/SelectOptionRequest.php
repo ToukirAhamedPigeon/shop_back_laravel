@@ -29,6 +29,7 @@ class SelectOptionRequest extends FormRequest
             'limit'     => $this->limit ?? 250,
             'skip'      => $this->skip ?? 0,
             'sortOrder' => $this->sortOrder ?? 'asc',
+            'where'     => $this->where ?? [],
         ]);
     }
 }

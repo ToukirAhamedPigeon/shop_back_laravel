@@ -5,6 +5,7 @@ namespace Modules\Shared\API\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Modules\Shared\Application\Requests\Auth\LoginRequest;
+use Modules\Shared\Application\Resources\User\UserResource;
 use Modules\Shared\Application\Services\IAuthService;
 
 class AuthController extends Controller
@@ -98,8 +99,9 @@ class AuthController extends Controller
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
-        return response()->json($userResource->toArray());
+        return $userResource;
     }
+
 
     /**
      * POST /auth/logout

@@ -6,12 +6,12 @@ use Illuminate\Support\Str;
 use Modules\Shared\Application\Requests\Auth\LoginRequest;
 use Modules\Shared\Application\Services\IAuthService;
 use Modules\Shared\Application\Resources\Auth\AuthResource;
-use Modules\Shared\Application\Resources\Auth\UserResource;
 use Modules\Shared\Domain\Entities\RefreshToken;
 use Modules\Shared\Application\Repositories\IUserRepository;
 use Modules\Shared\Application\Repositories\IRefreshTokenRepository;
 use Modules\Shared\Infrastructure\Helpers\UserLogHelper;
 use Carbon\Carbon;
+use Modules\Shared\Application\Resources\User\UserResource;
 
 class AuthService implements IAuthService
 {

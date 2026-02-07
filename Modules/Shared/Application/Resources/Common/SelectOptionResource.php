@@ -1,16 +1,19 @@
 <?php
 
-namespace Modules\Shared\Application\Resources\Common;
+namespace Modules\Shared\Application\Responses\Common;
 
-use Illuminate\Http\Resources\Json\JsonResource;
-
-class SelectOptionResource extends JsonResource
+final class SelectOptionResponse
 {
-    public function toArray($request): array
+    public function __construct(
+        public string $value,
+        public string $label
+    ) {}
+
+    public static function fromArray(array $row): self
     {
-        return [
-            'value' => (string) $this->value,
-            'label' => (string) $this->label,
-        ];
+        return new self(
+            (string) $row['value'],
+            (string) $row['label']
+        );
     }
 }

@@ -4,7 +4,7 @@ namespace Modules\Shared\Application\Services;
 
 use Modules\Shared\Application\Requests\Auth\LoginRequest;
 use Modules\Shared\Application\Resources\Auth\AuthResource;
-use Modules\Shared\Application\Resources\Auth\UserResource;
+use Modules\Shared\Application\Resources\User\UserResource ;
 
 interface IAuthService
 {

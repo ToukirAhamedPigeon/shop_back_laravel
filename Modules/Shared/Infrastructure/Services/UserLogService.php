@@ -4,7 +4,6 @@ namespace Modules\Shared\Infrastructure\Services;
 
 use Modules\Shared\Application\Repositories\IUserLogRepository;
 use Modules\Shared\Application\Services\IUserLogService;
-use Illuminate\Support\Facades\Cache;
 
 final class UserLogService implements IUserLogService
 {
@@ -26,24 +25,24 @@ final class UserLogService implements IUserLogService
         return $log ? (array)$log : null;
     }
 
-    public function getCollections($req): array
-    {
-        return Cache::remember('userlog.collections', 3600, fn() =>
-            $this->repo->getCollections($req)
-        );
-    }
+    // public function getCollections($req): array
+    // {
+    //     return Cache::remember('userlog.collections', 3600, fn() =>
+    //         $this->repo->getCollections($req)
+    //     );
+    // }
 
-    public function getActionTypes($req): array
-    {
-        return Cache::remember('userlog.actionTypes', 3600, fn() =>
-            $this->repo->getActionTypes($req)
-        );
-    }
+    // public function getActionTypes($req): array
+    // {
+    //     return Cache::remember('userlog.actionTypes', 3600, fn() =>
+    //         $this->repo->getActionTypes($req)
+    //     );
+    // }
 
-    public function getCreators($req): array
-    {
-        return Cache::remember('userlog.creators', 3600, fn() =>
-            $this->repo->getCreators($req)
-        );
-    }
+    // public function getCreators($req): array
+    // {
+    //     return Cache::remember('userlog.creators', 3600, fn() =>
+    //         $this->repo->getCreators($req)
+    //     );
+    // }
 }
