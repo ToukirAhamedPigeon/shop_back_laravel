@@ -13,7 +13,7 @@ final class ModelPermission
     public DateTimeImmutable $createdAt;
     public DateTimeImmutable $updatedAt;
 
-    public ?Permission $permission = null;
+    public ?Permission $permission;
 
     public function __construct(
         string $id,

@@ -13,11 +13,14 @@ final class Mail
     public string $body;
     public string $moduleName;
     public string $purpose;
-    public array $attachments; // stored as JSON
+    public ?string $attachmentsJson;
     public ?string $createdBy;
     public DateTimeImmutable $createdAt;
 
-    public ?User $createdByUser = null;
+    public ?User $createdByUser;
+
+    /** @var string[] */
+    private array $attachments = [];
 
     public function __construct(
         int $id,
@@ -27,7 +30,7 @@ final class Mail
         string $body,
         string $moduleName,
         string $purpose,
-        array $attachments = [],
+        ?string $attachmentsJson = null,
         ?string $createdBy = null,
         ?DateTimeImmutable $createdAt = null,
         ?User $createdByUser = null
@@ -39,9 +42,24 @@ final class Mail
         $this->body = $body;
         $this->moduleName = $moduleName;
         $this->purpose = $purpose;
-        $this->attachments = $attachments;
+        $this->attachmentsJson = $attachmentsJson;
         $this->createdBy = $createdBy;
         $this->createdAt = $createdAt ?? new DateTimeImmutable();
         $this->createdByUser = $createdByUser;
+
+        if ($attachmentsJson) {
+            $this->attachments = json_decode($attachmentsJson, true) ?? [];
+        }
+    }
+
+    public function getAttachments(): array
+    {
+        return $this->attachments;
+    }
+
+    public function setAttachments(array $attachments): void
+    {
+        $this->attachments = $attachments;
+        $this->attachmentsJson = json_encode($attachments);
     }
 }

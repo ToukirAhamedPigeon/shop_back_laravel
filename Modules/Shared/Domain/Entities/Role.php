@@ -27,7 +27,9 @@ final class Role
         bool $isActive = true,
         bool $isDeleted = false,
         ?DateTimeImmutable $createdAt = null,
-        ?DateTimeImmutable $updatedAt = null
+        ?DateTimeImmutable $updatedAt = null,
+        array $rolePermissions = [],
+        array $modelRoles = []
     ) {
         $this->id = $id;
         $this->name = $name;
@@ -36,5 +38,22 @@ final class Role
         $this->isDeleted = $isDeleted;
         $this->createdAt = $createdAt ?? new DateTimeImmutable();
         $this->updatedAt = $updatedAt ?? new DateTimeImmutable();
+        $this->rolePermissions = $rolePermissions;
+        $this->modelRoles = $modelRoles;
+    }
+
+    public function activate(): void
+    {
+        $this->isActive = true;
+    }
+
+    public function deactivate(): void
+    {
+        $this->isActive = false;
+    }
+
+    public function markDeleted(): void
+    {
+        $this->isDeleted = true;
     }
 }

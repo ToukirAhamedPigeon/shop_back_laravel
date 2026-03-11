@@ -7,8 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 class EloquentUserLog extends Model
 {
     protected $table = 'user_logs';
-    protected $keyType = 'string';
+    protected $primaryKey = 'id';
     public $incrementing = false;
+    protected $keyType = 'string';
     public $timestamps = false;
 
     protected $fillable = [
@@ -29,6 +30,11 @@ class EloquentUserLog extends Model
     ];
 
     protected $casts = [
+        'id' => 'string',
+        'changes' => 'array',
+        'model_id' => 'string',
+        'created_by' => 'string',
+        'created_at_id' => 'integer',
         'created_at' => 'datetime',
     ];
 }

@@ -8,17 +8,27 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class EloquentPermission extends Model
 {
     protected $table = 'permissions';
-    protected $keyType = 'string';
+    protected $primaryKey = 'id';
     public $incrementing = false;
+    protected $keyType = 'string';
     public $timestamps = true;
 
     protected $fillable = [
-        'id', 'name', 'guard_name', 'is_active', 'is_deleted'
+        'id',
+        'name',
+        'guard_name',
+        'is_active',
+        'is_deleted',
+        'created_at',
+        'updated_at'
     ];
 
     protected $casts = [
+        'id' => 'string',
         'is_active' => 'boolean',
         'is_deleted' => 'boolean',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
 
     public function rolePermissions(): HasMany

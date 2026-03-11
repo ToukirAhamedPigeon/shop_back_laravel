@@ -8,12 +8,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class EloquentMail extends Model
 {
     protected $table = 'mail';
-
     protected $primaryKey = 'id';
     public $incrementing = true;
     protected $keyType = 'int';
-
-    public $timestamps = false; // only created_at, no updated_at
+    public $timestamps = false;
 
     protected $fillable = [
         'from_mail',
@@ -32,9 +30,8 @@ class EloquentMail extends Model
         'created_at' => 'datetime',
     ];
 
-    /**
-     * Created By User (UUID)
-     */
+    protected $with = ['createdByUser'];
+
     public function createdByUser(): BelongsTo
     {
         return $this->belongsTo(EloquentUser::class, 'created_by', 'id');

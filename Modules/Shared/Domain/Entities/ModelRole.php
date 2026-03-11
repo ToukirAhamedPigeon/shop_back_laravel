@@ -13,7 +13,7 @@ final class ModelRole
     public DateTimeImmutable $createdAt;
     public DateTimeImmutable $updatedAt;
 
-    public ?Role $role = null;
+    public ?Role $role;
 
     public function __construct(
         string $id,

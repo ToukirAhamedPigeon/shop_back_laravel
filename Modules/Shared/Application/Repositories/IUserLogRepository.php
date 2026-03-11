@@ -9,10 +9,29 @@ use Modules\Shared\Application\Requests\Common\SelectOptionRequest;
 interface IUserLogRepository
 {
     public function create(UserLog $log): UserLog;
-    public function findById(string $id): ?UserLog;
-    public function getFiltered(UserLogFilterRequest $request): array;
+    public function createAsync(UserLog $log): UserLog;
 
-    public function getCollections(SelectOptionRequest $request): array;
-    public function getActionTypes(SelectOptionRequest $request): array;
-    public function getCreators(SelectOptionRequest $request): array;
+    public function getById(string $id): ?UserLog;
+    public function getByIdAsync(string $id): ?UserLog;
+
+    public function getByUserId(string $createdBy): array;
+    public function getByUserIdAsync(string $createdBy): array;
+
+    public function getAll(): array;
+    public function getAllAsync(): array;
+
+    public function saveChanges(): void;
+    public function saveChangesAsync(): void;
+
+    public function getFiltered(UserLogFilterRequest $req): array;
+    public function getFilteredAsync(UserLogFilterRequest $req): array;
+
+    public function getDistinctModelNames(SelectOptionRequest $req): array;
+    public function getDistinctModelNamesAsync(SelectOptionRequest $req): array;
+
+    public function getDistinctActionTypes(SelectOptionRequest $req): array;
+    public function getDistinctActionTypesAsync(SelectOptionRequest $req): array;
+
+    public function getDistinctCreators(SelectOptionRequest $req): array;
+    public function getDistinctCreatorsAsync(SelectOptionRequest $req): array;
 }

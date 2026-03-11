@@ -12,8 +12,8 @@ final class RolePermission
     public DateTimeImmutable $createdAt;
     public DateTimeImmutable $updatedAt;
 
-    public ?Permission $permission = null;
-    public ?Role $role = null;
+    public ?Permission $permission;
+    public ?Role $role;
 
     public function __construct(
         string $id,

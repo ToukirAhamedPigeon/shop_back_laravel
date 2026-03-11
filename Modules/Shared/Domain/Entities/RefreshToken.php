@@ -14,7 +14,7 @@ final class RefreshToken
     public ?string $updatedBy;
     public ?DateTimeImmutable $updatedAt;
 
-    public ?User $user = null;
+    public ?User $user;
 
     public function __construct(
         string $id,
@@ -45,6 +45,6 @@ final class RefreshToken
 
     public function isExpired(): bool
     {
-        return $this->expiresAt <= new DateTimeImmutable();
+        return $this->expiresAt < new DateTimeImmutable();
     }
 }

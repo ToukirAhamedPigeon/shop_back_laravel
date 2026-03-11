@@ -12,6 +12,9 @@ final class PasswordReset
     public DateTimeImmutable $expiresAt;
     public bool $used;
     public DateTimeImmutable $createdAt;
+    public string $tokenType; // "reset" or "change"
+    public ?string $newPasswordHash;
+
     public ?User $user;
 
     public function __construct(
@@ -21,6 +24,8 @@ final class PasswordReset
         DateTimeImmutable $expiresAt,
         bool $used,
         DateTimeImmutable $createdAt,
+        string $tokenType = 'reset',
+        ?string $newPasswordHash = null,
         ?User $user = null
     ) {
         $this->id = $id;
@@ -29,6 +34,8 @@ final class PasswordReset
         $this->expiresAt = $expiresAt;
         $this->used = $used;
         $this->createdAt = $createdAt;
+        $this->tokenType = $tokenType;
+        $this->newPasswordHash = $newPasswordHash;
         $this->user = $user;
     }
 
@@ -40,5 +47,20 @@ final class PasswordReset
     public function isExpired(): bool
     {
         return $this->expiresAt < new DateTimeImmutable();
+    }
+
+    public function isResetToken(): bool
+    {
+        return $this->tokenType === 'reset';
+    }
+
+    public function isChangeToken(): bool
+    {
+        return $this->tokenType === 'change';
+    }
+
+    public function setNewPasswordHash(string $hash): void
+    {
+        $this->newPasswordHash = $hash;
     }
 }

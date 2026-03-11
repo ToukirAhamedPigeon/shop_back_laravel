@@ -5,27 +5,28 @@ namespace Modules\Shared\Infrastructure\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class EloquentPasswordReset extends Model
+class EloquentMailVerification extends Model
 {
-    protected $table = 'password_reset';
+    protected $table = 'mail_verifications';
     protected $primaryKey = 'id';
-    public $incrementing = true;
-    protected $keyType = 'int';
+    public $incrementing = false;
+    protected $keyType = 'string';
     public $timestamps = false;
 
     protected $fillable = [
-        'token',
+        'id',
         'user_id',
+        'token',
         'expires_at',
-        'used',
-        'created_at',
-        'token_type',
-        'new_password_hash'
+        'is_used',
+        'used_at',
+        'created_at'
     ];
 
     protected $casts = [
-        'used' => 'boolean',
         'expires_at' => 'datetime',
+        'is_used' => 'boolean',
+        'used_at' => 'datetime',
         'created_at' => 'datetime',
     ];
 

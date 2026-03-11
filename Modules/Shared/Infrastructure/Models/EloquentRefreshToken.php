@@ -8,23 +8,35 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class EloquentRefreshToken extends Model
 {
     protected $table = 'refresh_tokens';
-    protected $keyType = 'string';
+    protected $primaryKey = 'id';
     public $incrementing = false;
-
-    // Disable default timestamps since we don't want created_at
+    protected $keyType = 'string';
     public $timestamps = true;
-    const CREATED_AT = null; // Disable created_at
-    const UPDATED_AT = 'updated_at'; // Keep updated_at
+    const CREATED_AT = 'created_at';
+    const UPDATED_AT = 'updated_at';
 
     protected $fillable = [
-        'id', 'token', 'expires_at', 'is_revoked', 'user_id', 'updated_by', 'updated_at'
+        'id',
+        'token',
+        'expires_at',
+        'is_revoked',
+        'user_id',
+        'updated_by',
+        'created_at',
+        'updated_at'
     ];
 
     protected $casts = [
+        'id' => 'string',
         'expires_at' => 'datetime',
         'is_revoked' => 'boolean',
+        'user_id' => 'string',
+        'updated_by' => 'string',
+        'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    protected $with = ['user'];
 
     public function user(): BelongsTo
     {

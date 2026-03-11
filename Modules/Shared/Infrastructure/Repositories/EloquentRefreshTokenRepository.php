@@ -11,9 +11,9 @@ use DateTimeImmutable;
 class EloquentRefreshTokenRepository implements IRefreshTokenRepository
 {
     /**
-     * Find refresh token by its string value (regardless of expiration)
+     * Get refresh token by its string value (with AsNoTracking equivalent)
      */
-    public function findByToken(string $token): ?RefreshToken
+    public function getByToken(string $token): ?RefreshToken
     {
         $model = EloquentRefreshToken::with('user')
             ->where('token', $token)
@@ -24,57 +24,54 @@ class EloquentRefreshTokenRepository implements IRefreshTokenRepository
     }
 
     /**
-     * Find only valid (not revoked, not expired) refresh token
+     * Async version for interface compatibility
      */
-    public function findValidToken(string $token): ?RefreshToken
+    public function getByTokenAsync(string $token): ?RefreshToken
     {
-        $model = EloquentRefreshToken::with('user')
-            ->where('token', $token)
-            ->where('is_revoked', false)
-            ->where('expires_at', '>', now())
-            ->first();
-
-        return $model ? $this->mapModelToEntity($model) : null;
+        return $this->getByToken($token);
     }
 
     /**
-     * Find refresh token by ID
+     * Add a new refresh token and save changes immediately
      */
-    public function findById(string $id): ?RefreshToken
+    public function add(RefreshToken $refreshToken): RefreshToken
     {
-        $model = EloquentRefreshToken::with('user')->find($id);
-        return $model ? $this->mapModelToEntity($model) : null;
+        $model = new EloquentRefreshToken();
+        $this->mapToModel($refreshToken, $model);
+        $model->save();
+
+        return $this->mapModelToEntity($model->fresh('user'));
     }
 
     /**
-     * Create a new refresh token record
+     * Async version for interface compatibility
      */
-    public function create(RefreshToken $refreshToken): RefreshToken
+    public function addAsync(RefreshToken $refreshToken): RefreshToken
     {
-        EloquentRefreshToken::create([
-            'id' => $refreshToken->id,
-            'token' => $refreshToken->token,
-            'user_id' => $refreshToken->userId,
-            'expires_at' => $refreshToken->expiresAt->format('Y-m-d H:i:s'),
-            'is_revoked' => $refreshToken->isRevoked,
-        ]);
-
-        return $refreshToken;
+        return $this->add($refreshToken);
     }
 
     /**
      * Revoke a single refresh token
      */
-    public function revoke(RefreshToken $refreshToken, ?string $updatedBy = null): void
+    public function revoke(RefreshToken $refreshToken): void
     {
         $model = EloquentRefreshToken::find($refreshToken->id);
         if ($model) {
             $model->update([
                 'is_revoked' => true,
-                'updated_by' => $updatedBy ?? $refreshToken->userId,
+                'updated_by' => $refreshToken->userId,
                 'updated_at' => now(),
             ]);
         }
+    }
+
+    /**
+     * Async version for interface compatibility
+     */
+    public function revokeAsync(RefreshToken $refreshToken): void
+    {
+        $this->revoke($refreshToken);
     }
 
     /**
@@ -82,13 +79,29 @@ class EloquentRefreshTokenRepository implements IRefreshTokenRepository
      */
     public function revokeAll(string $userId): void
     {
-        EloquentRefreshToken::where('user_id', $userId)
+        $tokens = EloquentRefreshToken::where('user_id', $userId)
             ->where('is_revoked', false)
-            ->update([
+            ->get();
+
+        if ($tokens->isEmpty()) {
+            return;
+        }
+
+        foreach ($tokens as $token) {
+            $token->update([
                 'is_revoked' => true,
                 'updated_by' => $userId,
                 'updated_at' => now(),
             ]);
+        }
+    }
+
+    /**
+     * Async version for interface compatibility
+     */
+    public function revokeAllAsync(string $userId): void
+    {
+        $this->revokeAll($userId);
     }
 
     /**
@@ -96,14 +109,30 @@ class EloquentRefreshTokenRepository implements IRefreshTokenRepository
      */
     public function revokeOther(string $exceptToken, string $userId): void
     {
-        EloquentRefreshToken::where('user_id', $userId)
+        $tokens = EloquentRefreshToken::where('user_id', $userId)
             ->where('token', '!=', $exceptToken)
             ->where('is_revoked', false)
-            ->update([
+            ->get();
+
+        if ($tokens->isEmpty()) {
+            return;
+        }
+
+        foreach ($tokens as $token) {
+            $token->update([
                 'is_revoked' => true,
                 'updated_by' => $userId,
                 'updated_at' => now(),
             ]);
+        }
+    }
+
+    /**
+     * Async version for interface compatibility
+     */
+    public function revokeOtherAsync(string $exceptToken, string $userId): void
+    {
+        $this->revokeOther($exceptToken, $userId);
     }
 
     /**
@@ -111,7 +140,52 @@ class EloquentRefreshTokenRepository implements IRefreshTokenRepository
      */
     public function removeExpired(): void
     {
+        $expiredTokens = EloquentRefreshToken::where('expires_at', '<', now())->get();
+
+        if ($expiredTokens->isEmpty()) {
+            return;
+        }
+
         EloquentRefreshToken::where('expires_at', '<', now())->delete();
+    }
+
+    /**
+     * Async version for interface compatibility
+     */
+    public function removeExpiredAsync(): void
+    {
+        $this->removeExpired();
+    }
+
+    /**
+     * Save changes - in Laravel, saves are auto, kept for interface compatibility
+     */
+    public function saveChanges(): void
+    {
+        // In Laravel, changes are auto-saved when calling save() on model
+        // This method is kept for interface compatibility
+        return;
+    }
+
+    /**
+     * Async version for interface compatibility
+     */
+    public function saveChangesAsync(): void
+    {
+        $this->saveChanges();
+    }
+
+    /**
+     * Map entity to model
+     */
+    private function mapToModel(RefreshToken $entity, EloquentRefreshToken $model): void
+    {
+        $model->id = $entity->id;
+        $model->token = $entity->token;
+        $model->user_id = $entity->userId;
+        $model->expires_at = $entity->expiresAt->format('Y-m-d H:i:s');
+        $model->is_revoked = $entity->isRevoked;
+        $model->updated_by = $entity->updatedBy;
     }
 
     /**
@@ -123,29 +197,45 @@ class EloquentRefreshTokenRepository implements IRefreshTokenRepository
         if ($model->relationLoaded('user') && $model->user) {
             $u = $model->user;
             $userEntity = new UserEntity(
-                $u->id,
-                $u->name,
-                $u->username,
-                $u->email,
-                $u->password,
-                $u->mobile_no,
-                $u->is_active,
-                $u->is_deleted,
-                $u->created_at ? new DateTimeImmutable($u->created_at) : null,
-                $u->updated_at ? new DateTimeImmutable($u->updated_at) : null,
-                [] // optionally pass refresh tokens
+                id: $u->id,
+                name: $u->name,
+                username: $u->username,
+                email: $u->email,
+                password: $u->password,
+                profileImage: $u->profile_image,
+                bio: $u->bio,
+                dateOfBirth: $u->date_of_birth ? new DateTimeImmutable($u->date_of_birth) : null,
+                gender: $u->gender,
+                address: $u->address,
+                mobileNo: $u->mobile_no,
+                emailVerifiedAt: $u->email_verified_at ? new DateTimeImmutable($u->email_verified_at) : null,
+                qrCode: $u->qr_code,
+                rememberToken: $u->remember_token,
+                lastLoginAt: $u->last_login_at ? new DateTimeImmutable($u->last_login_at) : null,
+                lastLoginIp: $u->last_login_ip,
+                timezone: $u->timezone,
+                language: $u->language,
+                nid: $u->nid,
+                isActive: $u->is_active,
+                isDeleted: $u->is_deleted,
+                deletedAt: $u->deleted_at ? new DateTimeImmutable($u->deleted_at) : null,
+                createdAt: new DateTimeImmutable($u->created_at),
+                updatedAt: new DateTimeImmutable($u->updated_at),
+                createdBy: $u->created_by,
+                updatedBy: $u->updated_by,
+                refreshTokens: []
             );
         }
 
         return new RefreshToken(
-            $model->id,
-            $model->token,
-            new DateTimeImmutable($model->expires_at),
-            $model->user_id,
-            $model->is_revoked,
-            $model->updated_by,
-            $model->updated_at ? new DateTimeImmutable($model->updated_at) : null,
-            $userEntity
+            id: $model->id,
+            token: $model->token,
+            expiresAt: new DateTimeImmutable($model->expires_at),
+            userId: $model->user_id,
+            isRevoked: $model->is_revoked,
+            updatedBy: $model->updated_by,
+            updatedAt: $model->updated_at ? new DateTimeImmutable($model->updated_at) : null,
+            user: $userEntity
         );
     }
 }

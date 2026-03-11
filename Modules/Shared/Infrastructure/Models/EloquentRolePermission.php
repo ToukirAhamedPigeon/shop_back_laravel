@@ -8,13 +8,28 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class EloquentRolePermission extends Model
 {
     protected $table = 'role_permissions';
-    protected $keyType = 'string';
+    protected $primaryKey = 'id';
     public $incrementing = false;
+    protected $keyType = 'string';
     public $timestamps = true;
 
     protected $fillable = [
-        'id', 'permission_id', 'role_id'
+        'id',
+        'permission_id',
+        'role_id',
+        'created_at',
+        'updated_at'
     ];
+
+    protected $casts = [
+        'id' => 'string',
+        'permission_id' => 'string',
+        'role_id' => 'string',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+    ];
+
+    protected $with = ['permission', 'role'];
 
     public function permission(): BelongsTo
     {

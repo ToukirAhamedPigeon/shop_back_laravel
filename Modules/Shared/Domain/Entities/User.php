@@ -6,63 +6,48 @@ use DateTimeImmutable;
 
 final class User
 {
-    // --------------------
-    // Identity
-    // --------------------
     public string $id;
     public string $name;
     public string $username;
     public string $email;
     public string $password;
 
-    // --------------------
-    // Profile (Nullable)
-    // --------------------
+    // Profile
     public ?string $profileImage;
     public ?string $bio;
     public ?DateTimeImmutable $dateOfBirth;
     public ?string $gender;
     public ?string $address;
 
-    // --------------------
     // Contact & Verification
-    // --------------------
     public ?string $mobileNo;
     public ?DateTimeImmutable $emailVerifiedAt;
 
-    // --------------------
     // QR
-    // --------------------
     public ?string $qrCode;
 
-    // --------------------
     // Auth & Security
-    // --------------------
     public ?string $rememberToken;
     public ?DateTimeImmutable $lastLoginAt;
     public ?string $lastLoginIp;
 
-    // --------------------
     // Preferences
-    // --------------------
     public ?string $timezone;
     public ?string $language;
+    public ?string $nid;
 
-    // --------------------
     // Flags
-    // --------------------
     public bool $isActive;
     public bool $isDeleted;
     public ?DateTimeImmutable $deletedAt;
 
-    // --------------------
     // Audit
-    // --------------------
     public DateTimeImmutable $createdAt;
     public DateTimeImmutable $updatedAt;
     public ?string $createdBy;
     public ?string $updatedBy;
 
+    // Navigation
     /** @var RefreshToken[] */
     public array $refreshTokens = [];
 
@@ -96,6 +81,7 @@ final class User
 
         ?string $timezone = null,
         ?string $language = null,
+        ?string $nid = null,
 
         bool $isActive = true,
         bool $isDeleted = false,
@@ -110,7 +96,7 @@ final class User
         array $roles = [],
         array $permissions = []
     ) {
-         $this->id = $id;
+        $this->id = $id;
         $this->name = $name;
         $this->username = $username;
         $this->email = $email;
@@ -133,6 +119,7 @@ final class User
 
         $this->timezone = $timezone;
         $this->language = $language;
+        $this->nid = $nid;
 
         $this->isActive = $isActive;
         $this->isDeleted = $isDeleted;
@@ -161,6 +148,7 @@ final class User
     public function markDeleted(): void
     {
         $this->isDeleted = true;
+        $this->deletedAt = new DateTimeImmutable();
     }
 
     public function addRefreshToken(RefreshToken $token): void
@@ -182,5 +170,15 @@ final class User
     public function clearRememberToken(): void
     {
         $this->rememberToken = null;
+    }
+
+    public function setRoles(array $roles): void
+    {
+        $this->roles = $roles;
+    }
+
+    public function setPermissions(array $permissions): void
+    {
+        $this->permissions = $permissions;
     }
 }
