@@ -10,7 +10,7 @@ use Modules\Shared\Domain\Entities\ModelRole;
 
 interface IRolePermissionRepository
 {
-    // ==================== ROLE METHODS ====================
+    // ==================== EXISTING METHODS ====================
     public function findRoleById(string $id): ?Role;
     public function findRoleByName(string $name): ?Role;
     public function findAllRoles(array $filters = []): array;
@@ -19,7 +19,6 @@ interface IRolePermissionRepository
     public function deleteRole(string $id): void;
     public function restoreRole(string $id): void;
 
-    // ==================== PERMISSION METHODS ====================
     public function findPermissionById(string $id): ?Permission;
     public function findPermissionByName(string $name): ?Permission;
     public function findAllPermissions(array $filters = []): array;
@@ -28,7 +27,6 @@ interface IRolePermissionRepository
     public function deletePermission(string $id): void;
     public function restorePermission(string $id): void;
 
-    // ==================== ROLE-PERMISSION METHODS ====================
     public function findRolePermissionById(string $id): ?RolePermission;
     public function findRolePermissionByRoleAndPermission(string $roleId, string $permissionId): ?RolePermission;
     public function findAllRolePermissionsByRoleId(string $roleId): array;
@@ -37,30 +35,71 @@ interface IRolePermissionRepository
     public function deleteRolePermission(string $id): void;
     public function deleteRolePermissionsByRole(string $roleId): void;
 
-    // ==================== MODEL-PERMISSION METHODS ====================
     public function findModelPermissionById(string $id): ?ModelPermission;
     public function findAllModelPermissionsByModel(string $modelId, string $modelName = 'User'): array;
     public function createModelPermission(ModelPermission $modelPermission): ModelPermission;
     public function deleteModelPermission(string $id): void;
     public function deleteModelPermissionsByModel(string $modelId, string $modelName = 'User'): void;
 
-    // ==================== MODEL-ROLE METHODS ====================
     public function findModelRoleById(string $id): ?ModelRole;
     public function findAllModelRolesByModel(string $modelId, string $modelName = 'User'): array;
     public function createModelRole(ModelRole $modelRole): ModelRole;
     public function deleteModelRole(string $id): void;
     public function deleteModelRolesByModel(string $modelId, string $modelName = 'User'): void;
 
-    // ==================== USER PERMISSION HELPER METHODS ====================
     public function getPermissionsByRoleId(string $roleId): array;
     public function getRolesByPermissionId(string $permissionId): array;
     public function getRoleNamesByUserId(string $userId, string $modelName = "User"): array;
     public function getRolePermissionsByUserId(string $userId): array;
     public function getModelPermissionsByUserId(string $userId): array;
     public function getAllPermissionsByUserId(string $userId): array;
-    
+
     public function getAllRoles(): array;
     public function getAllRolesAsync(): array;
     public function getAllPermissions(): array;
     public function getAllPermissionsAsync(): array;
+
+    // ==================== NEW METHODS FOR USER SERVICE ====================
+
+    /**
+     * Assign roles to a user
+     */
+    public function assignRolesToUser(string $userId, array $roles): void;
+
+    /**
+     * Assign permissions directly to a user
+     */
+    public function assignPermissionsToUser(string $userId, array $permissions): void;
+
+    /**
+     * Set roles for a user (replaces existing ones)
+     */
+    public function setRolesForUser(string $userId, array $roles): void;
+
+    /**
+     * Set permissions for a user (replaces existing direct permissions)
+     */
+    public function setPermissionsForUser(string $userId, array $permissions): void;
+
+    /**
+     * Validate that all role names exist
+     *
+     * @return array Array of valid role names
+     */
+    public function validateRolesExist(array $roles): array;
+
+    /**
+     * Get all permission names for given role names
+     */
+    public function getPermissionsByRoleNames(array $roles): array;
+
+    /**
+     * Remove all roles from a user
+     */
+    public function removeAllRolesFromUser(string $userId): void;
+
+    /**
+     * Remove all direct permissions from a user
+     */
+    public function removeAllPermissionsFromUser(string $userId): void;
 }

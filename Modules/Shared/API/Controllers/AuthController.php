@@ -5,8 +5,9 @@ namespace Modules\Shared\API\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Modules\Shared\Application\Requests\Auth\LoginRequest;
-use Modules\Shared\Application\Resources\User\UserResource;
 use Modules\Shared\Application\Services\IAuthService;
+use Illuminate\Support\Facades\App;
+use Exception;
 
 class AuthController extends Controller
 {
@@ -18,94 +19,90 @@ class AuthController extends Controller
     }
 
     /**
-     * POST /auth/login
-     * Issue short-lived access token + long-lived refresh token via http-only cookie
+     * POST /api/auth/login
+     * Authenticates a user with credentials and issues JWT + Refresh Token in HttpOnly cookie
      */
     public function login(LoginRequest $request)
     {
-        $result = $this->authService->login($request);
+        try {
+            $result = $this->authService->login($request);
 
-        if (!$result) {
+            if (!$result) {
+                return response()->json(['message' => 'Invalid credentials'], 401);
+            }
+
+            $expiry = now()->addDays(7); // 7 days expiry for cookie
+
+            // Create response with JSON data
+            $response = response()->json([
+                'user' => $result->toArray()['user'],
+                'accessToken' => $result->accessToken,
+                'refreshTokenExpiry' => $expiry->format('Y-m-d\TH:i:s.u') . '0Z'
+            ]);
+
+            // Append HttpOnly cookie with refresh token
+            return $this->appendRefreshTokenCookie(
+                $response,
+                $result->refreshToken,
+                $expiry
+            );
+
+        } catch (Exception $ex) {
+            $message = $ex->getMessage();
+
+            if ($message === 'EMAIL_NOT_VERIFIED') {
+                return response()->json(['message' => 'EMAIL_NOT_VERIFIED'], 401);
+            }
+
+            if ($message === 'USER_INACTIVE') {
+                return response()->json(['message' => 'USER_INACTIVE'], 401);
+            }
+
             return response()->json(['message' => 'Invalid credentials'], 401);
         }
-        $secure = app()->environment('production');
-        return response()
-            ->json([
-                'accessToken' => $result->accessToken,
-                'refreshTokenExpiry' => $result->refreshTokenExpiry->format('Y-m-d\TH:i:s.u\Z'),
-                'user' => $result->toArray()['user'],
-            ])
-            ->cookie(
-        'refreshToken',
-                $result->refreshToken,
-                60*24*7,
-                '/',
-                null,
-                $secure,
-                true,
-                false,
-                $secure ? 'None' : 'Lax'
-            );
     }
 
     /**
-     * POST /auth/refresh
-     * Issue new access token using refresh token from http-only cookie
+     * POST /api/auth/refresh
+     * Issues a new access token using the refresh token stored in cookie
      */
     public function refresh(Request $request)
     {
         $refreshToken = $request->cookie('refreshToken');
 
-        if (!$refreshToken) {
-            return response()->json(['message' => 'Refresh token required'], 400);
+        if (empty($refreshToken)) {
+            return response()->json(['message' => 'Missing refresh token'], 401);
         }
 
         $result = $this->authService->refreshToken($refreshToken);
 
         if (!$result) {
-            return response()->json(['message' => 'Invalid or expired refresh token'], 401);
+            return response()->json(['message' => 'Invalid refresh token'], 401);
         }
 
-        $secure = app()->environment('production');
+        if (!$result->user['isActive']) {
+            return response()->json(['message' => 'User is inactive'], 401);
+        }
 
-        return response()
-            ->json([
-                'accessToken' => $result->accessToken,
-                'refreshTokenExpiry' => $result->refreshTokenExpiry->format('Y-m-d\TH:i:s.u\Z'),
-                'user' => $result->toArray()['user'],
-            ])
-            ->cookie(
-        'refreshToken',
-                $refreshToken,
-                60 * 24 * 7,
-                '/',
-                null,
-                $secure,
-                true,
-                false,
-                $secure ? 'None' : 'Lax'
-            );
+        $expiry = now()->addDays(7);
+
+        $response = response()->json([
+            'user' => $result->toArray()['user'],
+            'accessToken' => $result->accessToken,
+            'refreshTokenExpiry' => $expiry->format('Y-m-d\TH:i:s.u') . '0Z'
+        ]);
+
+        // Keep the same refresh token in cookie
+        return $this->appendRefreshTokenCookie(
+            $response,
+            $refreshToken,
+            $expiry
+        );
     }
 
     /**
-     * GET /auth/me
-     * Return current authenticated user
-     */
-    public function me(Request $request)
-    {
-        $userResource = $this->authService->me();
-
-        if (!$userResource) {
-            return response()->json(['message' => 'Unauthenticated'], 401);
-        }
-
-        return $userResource;
-    }
-
-
-    /**
-     * POST /auth/logout
-     * Revoke current refresh token and clear cookie
+     * POST /api/auth/logout
+     * Logs out the current device (revokes the refresh token in cookie)
      */
     public function logout(Request $request)
     {
@@ -117,39 +114,76 @@ class AuthController extends Controller
 
         return response()
             ->json(['message' => 'Logged out successfully'])
-            ->withoutCookie('refreshToken');
+            ->withoutCookie('refreshToken', '/');
     }
 
     /**
-     * POST /auth/logout-all
-     * Revoke all refresh tokens for the user
+     * POST /api/auth/logout-all
+     * Logs out user from all devices (revokes all refresh tokens)
      */
     public function logoutAll(Request $request)
     {
         $user = $request->user();
+
         if ($user) {
             $this->authService->logoutAllDevices($user->id);
         }
 
         return response()
             ->json(['message' => 'Logged out from all devices'])
-            ->withoutCookie('refreshToken');
+            ->withoutCookie('refreshToken', '/');
     }
 
     /**
-     * POST /auth/logout-others
-     * Revoke all refresh tokens except the current one
+     * POST /api/auth/logout-others
+     * Logs out from all other devices except the current one
      */
     public function logoutOthers(Request $request)
     {
-        $user = $request->user();
-        $currentRefreshToken = $request->cookie('refreshToken');
+        $refreshToken = $request->cookie('refreshToken');
 
-        if ($user && $currentRefreshToken) {
-            $this->authService->logoutOtherDevices($currentRefreshToken, $user->id);
+        if ($refreshToken) {
+            $user = $request->user();
+            if ($user) {
+                $this->authService->logoutOtherDevices($refreshToken, $user->id);
+            }
         }
 
-        return response()
-            ->json(['message' => 'Logged out from other devices']);
+        return response()->json(['message' => 'Logged out from other devices']);
+    }
+
+    /**
+     * GET /api/auth/me
+     * Returns the current authenticated user (kept for compatibility)
+     */
+    public function me(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        return response()->json(['user' => $user]);
+    }
+
+    /**
+     * Private helper to append refresh token cookie with proper settings
+     */
+    private function appendRefreshTokenCookie($response, string $token, \DateTime $expiry)
+    {
+        $secure = App::environment('production');
+
+        return $response->cookie(
+            'refreshToken',           // name
+            $token,                    // value
+            60 * 24 * 7,               // minutes (7 days)
+            '/',                       // path
+            null,                      // domain
+            $secure,                   // secure (HTTPS only)
+            true,                      // httpOnly
+            false,                     // raw
+            $secure ? 'None' : 'Lax'   // sameSite
+        );
     }
 }

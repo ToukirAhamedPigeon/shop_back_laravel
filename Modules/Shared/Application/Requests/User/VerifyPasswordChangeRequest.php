@@ -1,10 +1,10 @@
 <?php
 
-namespace Modules\Shared\Application\Requests\Auth;
+namespace Modules\Shared\Application\Requests\User;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class LoginRequest extends FormRequest
+class VerifyPasswordChangeRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -14,16 +14,14 @@ class LoginRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'identifier' => ['required', 'string'],
-            'password' => ['required', 'string'],
+            'token' => ['required', 'string'],
         ];
     }
 
     protected function prepareForValidation(): void
     {
         $this->merge([
-            'identifier' => $this->identifier ?? '',
-            'password' => $this->password ?? '',
+            'token' => $this->token ?? '',
         ]);
     }
 }

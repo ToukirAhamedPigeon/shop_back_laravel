@@ -4,7 +4,7 @@ namespace Modules\Shared\Infrastructure\Repositories;
 
 use Modules\Shared\Application\Repositories\IUserRepository;
 use Modules\Shared\Application\Repositories\IRolePermissionRepository;
-use Modules\Shared\Application\Requests\Users\UserFilterRequest;
+use Modules\Shared\Application\Requests\User\UserFilterRequest;
 use Modules\Shared\Application\Requests\Common\SelectOptionRequest;
 use Modules\Shared\Domain\Entities\User as UserEntity;
 use Modules\Shared\Infrastructure\Models\EloquentUser;

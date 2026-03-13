@@ -14,6 +14,7 @@ use Modules\Shared\Infrastructure\Models\EloquentRolePermission;
 use Modules\Shared\Infrastructure\Models\EloquentModelPermission;
 use Modules\Shared\Infrastructure\Models\EloquentModelRole;
 use DateTimeImmutable;
+use Illuminate\Support\Str;
 
 class EloquentRolePermissionRepository implements IRolePermissionRepository
 {
@@ -392,6 +393,164 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
         return $this->getAllPermissions();
     }
 
+     // ==================== NEW METHODS FOR USER SERVICE ====================
+
+    /**
+     * Assign roles to a user
+     */
+    public function assignRolesToUser(string $userId, array $roles): void
+    {
+        foreach ($roles as $roleName) {
+            $role = EloquentRole::where('name', $roleName)->first();
+            if (!$role) continue;
+
+            $exists = EloquentModelRole::where('model_id', $userId)
+                ->where('model_name', 'User')
+                ->where('role_id', $role->id)
+                ->exists();
+
+            if (!$exists) {
+                EloquentModelRole::create([
+                    'id' => (string) Str::uuid(),
+                    'model_id' => $userId,
+                    'role_id' => $role->id,
+                    'model_name' => 'User',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Assign permissions directly to a user
+     */
+    public function assignPermissionsToUser(string $userId, array $permissions): void
+    {
+        foreach ($permissions as $permissionName) {
+            $permission = EloquentPermission::where('name', $permissionName)->first();
+            if (!$permission) continue;
+
+            $exists = EloquentModelPermission::where('model_id', $userId)
+                ->where('model_name', 'User')
+                ->where('permission_id', $permission->id)
+                ->exists();
+
+            if (!$exists) {
+                EloquentModelPermission::create([
+                    'id' => (string) Str::uuid(),
+                    'model_id' => $userId,
+                    'permission_id' => $permission->id,
+                    'model_name' => 'User',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Set roles for a user (replaces existing ones)
+     */
+    public function setRolesForUser(string $userId, array $roles): void
+    {
+        // Remove all existing roles
+        $this->removeAllRolesFromUser($userId);
+
+        // Assign new roles
+        $this->assignRolesToUser($userId, $roles);
+    }
+
+    /**
+     * Set permissions for a user (replaces existing direct permissions)
+     */
+    public function setPermissionsForUser(string $userId, array $permissions): void
+    {
+        // Remove all existing direct permissions
+        $this->removeAllPermissionsFromUser($userId);
+
+        // Assign new permissions
+        $this->assignPermissionsToUser($userId, $permissions);
+    }
+
+    /**
+     * Validate that all role names exist
+     *
+     * @return array Array of valid role names
+     */
+    public function validateRolesExist(array $roles): array
+    {
+        if (empty($roles)) {
+            return [];
+        }
+
+        return EloquentRole::whereIn('name', $roles)
+            ->where('is_deleted', false)
+            ->where('is_active', true)
+            ->pluck('name')
+            ->toArray();
+    }
+
+    /**
+     * Get all permission names for given role names
+     */
+    public function getPermissionsByRoleNames(array $roles): array
+    {
+        if (empty($roles)) {
+            return [];
+        }
+
+        return EloquentRole::whereIn('name', $roles)
+            ->with(['rolePermissions.permission'])
+            ->get()
+            ->flatMap(function ($role) {
+                return $role->rolePermissions->pluck('permission.name');
+            })
+            ->unique()
+            ->toArray();
+    }
+
+    /**
+     * Remove all roles from a user
+     */
+    public function removeAllRolesFromUser(string $userId): void
+    {
+        EloquentModelRole::where('model_id', $userId)
+            ->where('model_name', 'User')
+            ->delete();
+    }
+
+    /**
+     * Remove all direct permissions from a user
+     */
+    public function removeAllPermissionsFromUser(string $userId): void
+    {
+        EloquentModelPermission::where('model_id', $userId)
+            ->where('model_name', 'User')
+            ->delete();
+    }
+
+    /**
+     * Get role IDs by role names
+     */
+    private function getRoleIdsByNames(array $roles): array
+    {
+        return EloquentRole::whereIn('name', $roles)
+            ->pluck('id', 'name')
+            ->toArray();
+    }
+
+    /**
+     * Get permission IDs by permission names
+     */
+    private function getPermissionIdsByNames(array $permissions): array
+    {
+        return EloquentPermission::whereIn('name', $permissions)
+            ->pluck('id', 'name')
+            ->toArray();
+    }
+
+
     // ==================== MAPPER METHODS ====================
 
     private function mapRoleToEntity(EloquentRole $model): RoleEntity
@@ -466,4 +625,6 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
                 : null
         );
     }
+
+
 }

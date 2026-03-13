@@ -24,6 +24,19 @@ class SelectOptionRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        // Handle completely empty request
+        if ($this->all() === []) {
+            $this->merge([
+                'limit' => 100,
+                'skip' => 0,
+                'sortOrder' => 'asc',
+                'where' => [],
+                'search' => null,
+            ]);
+            return;
+        }
+
+        // Normal merge with defaults
         $this->merge([
             'limit'     => $this->limit ?? 100,
             'skip'      => $this->skip ?? 0,

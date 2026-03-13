@@ -7,16 +7,13 @@ use Modules\Shared\Application\Requests\Common\SelectOptionRequest;
 interface IOptionsService
 {
     /**
-     * Get select options for a given type
+     * Get select options for a given type (collections, actionTypes, creators, etc.)
      *
-     * @param string $type The option type (userlogcollections, userlogactiontypes, userlogcreators, usercreators, userupdaters, userdatetypes, roles, permissions)
-     * @param SelectOptionRequest $req The request with search, pagination, and where filters
-     * @return array Array of SelectOptionResource items
+     * @param string $type The option type
+     * @param SelectOptionRequest $req Filter/pagination/search request
+     * @return array Array of options with value and label
      */
     public function getOptions(string $type, SelectOptionRequest $req): array;
 
-    /**
-     * Async version for interface compatibility
-     */
     public function getOptionsAsync(string $type, SelectOptionRequest $req): array;
 }

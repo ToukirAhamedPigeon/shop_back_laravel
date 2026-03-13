@@ -81,6 +81,46 @@ class UserResource
         $this->permissions = $user->permissions ?? [];
     }
 
+    /**
+     * Create a UserResource from a User entity with roles and permissions
+     * This is a factory method for creating instances without createdBy/updatedBy names
+     */
+    public static function fromUser(User $user, array $roles = [], array $permissions = []): self
+    {
+        // Temporarily set roles and permissions on the user if provided
+        $originalRoles = $user->roles;
+        $originalPermissions = $user->permissions;
+
+        if (!empty($roles)) {
+            $user->roles = $roles;
+        }
+
+        if (!empty($permissions)) {
+            $user->permissions = $permissions;
+        }
+
+        $resource = new self($user);
+
+        // Restore original values if needed (though not strictly necessary as this is a new instance)
+        if (!empty($roles)) {
+            $user->roles = $originalRoles;
+        }
+
+        if (!empty($permissions)) {
+            $user->permissions = $originalPermissions;
+        }
+
+        return $resource;
+    }
+
+    /**
+     * Create a UserResource with audit names (for list views)
+     */
+    public static function fromUserWithAudit(User $user, ?string $createdByName = null, ?string $updatedByName = null): self
+    {
+        return new self($user, $createdByName, $updatedByName);
+    }
+
     public function toArray(): array
     {
         return [
@@ -118,7 +158,6 @@ class UserResource
     public static function collection(array $users, array $createdByNames = [], array $updatedByNames = []): array
     {
         return array_map(function($user) use ($createdByNames, $updatedByNames) {
-            // ✅ FIX: Create object first, then call toArray()
             $resource = new self(
                 $user,
                 $createdByNames[$user->createdBy] ?? null,

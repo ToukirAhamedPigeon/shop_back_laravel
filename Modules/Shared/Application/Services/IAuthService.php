@@ -4,19 +4,26 @@ namespace Modules\Shared\Application\Services;
 
 use Modules\Shared\Application\Requests\Auth\LoginRequest;
 use Modules\Shared\Application\Resources\Auth\AuthResource;
-use Modules\Shared\Application\Resources\User\UserResource ;
 
 interface IAuthService
 {
-    public function login(LoginRequest $loginDto): ?AuthResource;
+    public function login(LoginRequest $request): ?AuthResource;
 
-    public function me(): ?UserResource;
+    public function loginAsync(LoginRequest $request): ?AuthResource;
 
-    public function refreshToken(string $refreshToken): ?AuthResource;
+    public function refreshToken(string $token): ?AuthResource;
 
-    public function logout(string $refreshToken): void;
+    public function refreshTokenAsync(string $token): ?AuthResource;
+
+    public function logout(string $token): void;
+
+    public function logoutAsync(string $token): void;
 
     public function logoutAllDevices(string $userId): void;
 
+    public function logoutAllDevicesAsync(string $userId): void;
+
     public function logoutOtherDevices(string $exceptRefreshToken, string $userId): void;
+
+    public function logoutOtherDevicesAsync(string $exceptRefreshToken, string $userId): void;
 }

@@ -29,4 +29,8 @@ interface IPasswordResetRepository
     public function markExistingTokensAsUsed(string $userId, string $tokenType): void;
 
     public function markExistingTokensAsUsedAsync(string $userId, string $tokenType): void;
+
+    public function markUsed(PasswordReset $passwordReset): void;
+
+    public function deleteExpired(): int;
 }

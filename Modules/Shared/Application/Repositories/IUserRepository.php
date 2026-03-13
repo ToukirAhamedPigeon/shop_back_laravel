@@ -3,7 +3,7 @@
 namespace Modules\Shared\Application\Repositories;
 
 use Modules\Shared\Domain\Entities\User;
-use Modules\Shared\Application\Requests\Users\UserFilterRequest;
+use Modules\Shared\Application\Requests\User\UserFilterRequest;
 use Modules\Shared\Application\Requests\Common\SelectOptionRequest;
 
 interface IUserRepository
