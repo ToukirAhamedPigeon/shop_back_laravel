@@ -2,10 +2,10 @@
 
 namespace Modules\Shared\Infrastructure\Repositories;
 
+use Carbon\Carbon;
 use Modules\Shared\Application\Repositories\IUserLogRepository;
 use Modules\Shared\Domain\Entities\UserLog;
 use Modules\Shared\Infrastructure\Models\EloquentUserLog;
-use Modules\Shared\Infrastructure\Models\EloquentUser;
 use Modules\Shared\Application\Requests\UserLog\UserLogFilterRequest;
 use Modules\Shared\Application\Requests\Common\SelectOptionRequest;
 use Modules\Shared\Application\Resources\UserLog\UserLogResource;
@@ -119,18 +119,20 @@ class EloquentUserLogRepository implements IUserLogRepository
         if (!empty($req->q)) {
             $query->where(function ($q) use ($req) {
                 $q->where('user_logs.detail', 'like', "%{$req->q}%")
-                  ->orWhere('user_logs.action_type', 'like', "%{$req->q}%")
-                  ->orWhere('user_logs.model_name', 'like', "%{$req->q}%");
+                ->orWhere('user_logs.action_type', 'like', "%{$req->q}%")
+                ->orWhere('user_logs.model_name', 'like', "%{$req->q}%");
             });
         }
 
-        // Date filters
+        // FIX: Date filters - use proper date formatting
         if ($req->createdAtFrom) {
-            $query->where('user_logs.created_at', '>=', $req->createdAtFrom . ' 00:00:00');
+            $fromDate = Carbon::parse($req->createdAtFrom)->startOfDay()->format('Y-m-d H:i:s');
+            $query->where('user_logs.created_at', '>=', $fromDate);
         }
 
         if ($req->createdAtTo) {
-            $query->where('user_logs.created_at', '<=', $req->createdAtTo . ' 23:59:59');
+            $toDate = Carbon::parse($req->createdAtTo)->endOfDay()->format('Y-m-d H:i:s');
+            $query->where('user_logs.created_at', '<=', $toDate);
         }
 
         // Collection filter
@@ -148,74 +150,55 @@ class EloquentUserLogRepository implements IUserLogRepository
             $query->whereIn('user_logs.created_by', $req->createdBy);
         }
 
-        // Build the logs query with DTO projection
-        $logsQuery = $query->select(
-            'user_logs.id',
-            'user_logs.detail',
-            'user_logs.model_name',
-            'user_logs.action_type',
-            'user_logs.model_id',
-            'user_logs.created_by',
-            'users.name as created_by_name',
-            'user_logs.created_at',
-            'user_logs.changes',
-            'user_logs.created_at_id',
-            'user_logs.ip_address',
-            'user_logs.browser',
-            'user_logs.device',
-            'user_logs.os as operating_system',
-            'user_logs.user_agent'
-        );
-
         // Get total counts
-        $totalCount = $logsQuery->count();
+        $totalCount = $query->count();
         $grandTotalCount = DB::table('user_logs')->count();
 
         // Sorting
-        $desc = strtolower($req->sortOrder ?? 'desc') === 'desc';
+        $allowedSortColumns = [
+            'detail' => 'user_logs.detail',
+            'actionType' => 'user_logs.action_type',
+            'modelName' => 'user_logs.model_name',
+            'createdAt' => 'user_logs.created_at',
+            'createdBy' => 'users.name',
+            'ipAddress' => 'user_logs.ip_address',
+            'browser' => 'user_logs.browser',
+            'device' => 'user_logs.device',
+            'operatingSystem' => 'user_logs.os',
+        ];
 
-        switch (strtolower($req->sortBy ?? '')) {
-            case 'createdat':
-                $logsQuery = $desc ? $logsQuery->orderByDesc('user_logs.created_at') : $logsQuery->orderBy('user_logs.created_at');
-                break;
-            case 'createdbyname':
-                $logsQuery = $desc ? $logsQuery->orderByDesc('users.name') : $logsQuery->orderBy('users.name');
-                break;
-            case 'actiontype':
-                $logsQuery = $desc ? $logsQuery->orderByDesc('user_logs.action_type') : $logsQuery->orderBy('user_logs.action_type');
-                break;
-            case 'changes':
-                $logsQuery = $desc ? $logsQuery->orderByDesc('user_logs.changes') : $logsQuery->orderBy('user_logs.changes');
-                break;
-            case 'modelname':
-                $logsQuery = $desc ? $logsQuery->orderByDesc('user_logs.model_name') : $logsQuery->orderBy('user_logs.model_name');
-                break;
-            case 'operatingsystem':
-                $logsQuery = $desc ? $logsQuery->orderByDesc('user_logs.os') : $logsQuery->orderBy('user_logs.os');
-                break;
-            case 'browser':
-                $logsQuery = $desc ? $logsQuery->orderByDesc('user_logs.browser') : $logsQuery->orderBy('user_logs.browser');
-                break;
-            case 'device':
-                $logsQuery = $desc ? $logsQuery->orderByDesc('user_logs.device') : $logsQuery->orderBy('user_logs.device');
-                break;
-            case 'ipaddress':
-                $logsQuery = $desc ? $logsQuery->orderByDesc('user_logs.ip_address') : $logsQuery->orderBy('user_logs.ip_address');
-                break;
-            case 'useragent':
-                $logsQuery = $desc ? $logsQuery->orderByDesc('user_logs.user_agent') : $logsQuery->orderBy('user_logs.user_agent');
-                break;
-            default:
-                $logsQuery = $logsQuery->orderByDesc('user_logs.created_at');
-                break;
-        }
+        $sortColumn = $allowedSortColumns[$req->sortBy] ?? 'user_logs.created_at';
+        $sortOrder = strtolower($req->sortOrder) === 'asc' ? 'asc' : 'desc';
 
         // Pagination
-        $logs = $logsQuery
-            ->skip(($req->page - 1) * $req->limit)
-            ->take($req->limit)
+        $logs = $query
+            ->select(
+                'user_logs.*',
+                'users.name as created_by_name'
+            )
+            ->orderBy($sortColumn, $sortOrder)
+            ->offset(($req->page - 1) * $req->limit)
+            ->limit($req->limit)
             ->get()
-            ->map(fn ($log) => $this->mapToDto($log))
+            ->map(function ($log) {
+                return [
+                    'id' => $log->id,
+                    'detail' => $log->detail,
+                    'changes' => $log->changes ? json_decode($log->changes, true) : null,
+                    'actionType' => $log->action_type,
+                    'modelName' => $log->model_name,
+                    'modelId' => $log->model_id,
+                    'createdBy' => $log->created_by,
+                    'createdByName' => $log->created_by_name,
+                    'createdAt' => $log->created_at,
+                    'createdAtId' => $log->created_at_id,
+                    'ipAddress' => $log->ip_address,
+                    'browser' => $log->browser,
+                    'device' => $log->device,
+                    'operatingSystem' => $log->os,
+                    'userAgent' => $log->user_agent,
+                ];
+            })
             ->toArray();
 
         return [

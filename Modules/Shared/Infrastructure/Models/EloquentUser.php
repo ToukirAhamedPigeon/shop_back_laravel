@@ -66,11 +66,17 @@ class EloquentUser extends Authenticatable
         'remember_token',
     ];
 
+    /**
+     * Get the refresh tokens for the user.
+     */
     public function refreshTokens(): HasMany
     {
         return $this->hasMany(EloquentRefreshToken::class, 'user_id', 'id');
     }
 
+    /**
+     * Get the roles for the user through model_roles table.
+     */
     public function roles(): BelongsToMany
     {
         return $this->belongsToMany(
@@ -78,11 +84,15 @@ class EloquentUser extends Authenticatable
             'model_roles',
             'model_id',
             'role_id'
-        )->withPivot('model_name')
-         ->withTimestamps()
-         ->wherePivot('model_name', 'User');
+        )
+        ->withPivot('model_name')
+        ->withTimestamps()
+        ->wherePivot('model_name', 'User');
     }
 
+    /**
+     * Get the direct permissions for the user through model_permissions table.
+     */
     public function permissions(): BelongsToMany
     {
         return $this->belongsToMany(
@@ -90,8 +100,77 @@ class EloquentUser extends Authenticatable
             'model_permissions',
             'model_id',
             'permission_id'
-        )->withPivot('model_name')
-         ->withTimestamps()
-         ->wherePivot('model_name', 'User');
+        )
+        ->withPivot('model_name')
+        ->withTimestamps()
+        ->wherePivot('model_name', 'User');
+    }
+
+    /**
+     * Get all permissions for the user (from roles + direct).
+     */
+    public function getAllPermissionsAttribute(): array
+    {
+        $permissions = [];
+
+        // Get permissions from roles
+        foreach ($this->roles as $role) {
+            foreach ($role->permissions as $permission) {
+                $permissions[$permission->name] = $permission->name;
+            }
+        }
+
+        // Get direct permissions
+        foreach ($this->permissions as $permission) {
+            $permissions[$permission->name] = $permission->name;
+        }
+
+        return array_values($permissions);
+    }
+
+    /**
+     * Check if user has a specific permission.
+     */
+    public function hasPermissionTo(string $permission): bool
+    {
+        // Check direct permissions
+        if ($this->permissions()->where('name', $permission)->exists()) {
+            return true;
+        }
+
+        // Check permissions through roles
+        foreach ($this->roles as $role) {
+            if ($role->permissions()->where('name', $permission)->exists()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if user has any of the given permissions.
+     */
+    public function hasAnyPermission(array $permissions): bool
+    {
+        foreach ($permissions as $permission) {
+            if ($this->hasPermissionTo($permission)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check if user has all of the given permissions.
+     */
+    public function hasAllPermissions(array $permissions): bool
+    {
+        foreach ($permissions as $permission) {
+            if (!$this->hasPermissionTo($permission)) {
+                return false;
+            }
+        }
+        return true;
     }
 }

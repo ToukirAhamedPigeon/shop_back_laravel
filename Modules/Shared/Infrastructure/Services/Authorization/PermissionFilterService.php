@@ -6,6 +6,7 @@ use Closure;
 use Illuminate\Http\Request;
 use Modules\Shared\Application\Services\Authorization\IPermissionFilter;
 use Modules\Shared\Application\Services\Authorization\IPermissionHandlerService;
+use Illuminate\Support\Facades\Log;
 
 class PermissionFilterService implements IPermissionFilter
 {
@@ -22,23 +23,37 @@ class PermissionFilterService implements IPermissionFilter
     public function handle(Request $request, Closure $next, ...$params)
     {
         $user = $request->user();
+
         if (!$user) {
+            Log::warning('Permission check failed: No authenticated user');
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        // Ensure permissions are an array (comma-separated string allowed)
-        $relationString = $params[0] ?? 'any';
-        $permissions = $params;
-        if (is_array($permissions) && count($permissions) > 1) {
-            array_shift($permissions);
-            $permissions = array_map('trim', $permissions);
-        }
-        // Map raw string relation -> enum
+        // Parse middleware parameters
+        $relation = 'or'; // default
+        $permissions = [];
 
-        $relation = strtolower($relationString) === 'all' ? 'and' : 'or';
+        foreach ($params as $param) {
+            if ($param === 'any' || $param === 'all') {
+                $relation = $param === 'any' ? 'or' : 'and';
+            } else {
+                $permissions[] = $param;
+            }
+        }
+
+        Log::info('Checking permissions', [
+            'user_id' => $user->id,
+            'relation' => $relation,
+            'permissions' => $permissions
+        ]);
+
         $requirement = new PermissionRequirement($permissions, $relation);
 
         if (!$this->permissionService->handle((string) $user->id, $requirement)) {
+            Log::warning('Permission denied', [
+                'user_id' => $user->id,
+                'required' => $permissions
+            ]);
             return response()->json(['message' => 'Forbidden'], 403);
         }
 

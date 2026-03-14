@@ -14,6 +14,8 @@ use Modules\Shared\Infrastructure\Models\EloquentRolePermission;
 use Modules\Shared\Infrastructure\Models\EloquentModelPermission;
 use Modules\Shared\Infrastructure\Models\EloquentModelRole;
 use DateTimeImmutable;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class EloquentRolePermissionRepository implements IRolePermissionRepository
@@ -357,10 +359,34 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
 
     public function getAllPermissionsByUserId(string $userId): array
     {
-        return array_unique(array_merge(
-            $this->getRolePermissionsByUserId($userId),
-            $this->getModelPermissionsByUserId($userId)
-        ));
+        try {
+            $permissions = [];
+
+            // Get permissions from roles
+            $rolePermissions = DB::table('model_roles')
+                ->join('role_permissions', 'model_roles.role_id', '=', 'role_permissions.role_id')
+                ->join('permissions', 'role_permissions.permission_id', '=', 'permissions.id')
+                ->where('model_roles.model_id', $userId)
+                ->where('model_roles.model_name', 'User')
+                ->where('permissions.is_deleted', false)
+                ->pluck('permissions.name')
+                ->toArray();
+
+            // Get direct permissions
+            $directPermissions = DB::table('model_permissions')
+                ->join('permissions', 'model_permissions.permission_id', '=', 'permissions.id')
+                ->where('model_permissions.model_id', $userId)
+                ->where('model_permissions.model_name', 'User')
+                ->where('permissions.is_deleted', false)
+                ->pluck('permissions.name')
+                ->toArray();
+
+            return array_unique(array_merge($rolePermissions, $directPermissions));
+
+        } catch (\Exception $e) {
+            Log::error('Error in getAllPermissionsByUserId: ' . $e->getMessage());
+            return [];
+        }
     }
     // Add to EloquentRolePermissionRepository
 

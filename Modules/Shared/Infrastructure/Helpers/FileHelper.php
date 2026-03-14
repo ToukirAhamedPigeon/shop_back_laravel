@@ -45,7 +45,8 @@ class FileHelper
         $path = $file->storeAs("uploads/{$subFolder}", $fileName, $disk);
 
         // Return the relative path (with leading slash for web access)
-        return $path ? "/storage/{$path}" : null;
+        // return $path ? "/storage/{$path}" : null;
+        return $path ? "/{$path}" : null;
     }
 
     /**

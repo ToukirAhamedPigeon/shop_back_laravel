@@ -27,23 +27,31 @@ class JwtHelper
      */
     public function generateToken(User $user, array $permissions): string
     {
-        $payload = [
-            'sub' => $user->id,
-            'UserId' => $user->id,
-            'unique_name' => $user->username,
-            'email' => $user->email,
-            'mobile_no' => $user->mobileNo ?? '',
-            'permissions' => $permissions,
-            'timezone' => $user->timezone,
-            'nid' => $user->nid,
-            'language' => $user->language,
-            'iss' => $this->issuer,
-            'aud' => $this->audience,
-            'iat' => time(),
-            'exp' => time() + ($this->expiryMinutes * 60),
-        ];
+        try {
+            $payload = [
+                'sub' => $user->id,
+                'UserId' => $user->id,
+                'unique_name' => $user->username,
+                'email' => $user->email,
+                'mobile_no' => $user->mobileNo ?? '',
+                'permissions' => $permissions,
+                'timezone' => $user->timezone,
+                'nid' => $user->nid,
+                'language' => $user->language,
+                'iss' => $this->issuer,
+                'aud' => $this->audience,
+                'iat' => time(),
+                'exp' => time() + ($this->expiryMinutes * 60),
+            ];
 
-        return JWT::encode($payload, $this->key, 'HS256');
+            Log::info('JWT Payload: ' . json_encode($payload));
+
+            return JWT::encode($payload, $this->key, 'HS256');
+
+        } catch (\Exception $e) {
+            Log::error('JWT Generation Error: ' . $e->getMessage());
+            throw $e;
+        }
     }
 
     /**

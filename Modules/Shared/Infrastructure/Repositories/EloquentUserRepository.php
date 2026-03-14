@@ -16,6 +16,7 @@ use Modules\Shared\Application\Resources\Common\SelectOptionResource;
 use DateTimeImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 use ReflectionClass;
 
 class EloquentUserRepository implements IUserRepository
@@ -32,7 +33,7 @@ class EloquentUserRepository implements IUserRepository
     public function existsByUsername(string $username, ?string $ignoreId = null): bool
     {
         $query = EloquentUser::where('username', $username)
-            ->where('is_deleted', false);
+            ->where('is_deleted', false); // This is boolean false, not string
 
         if ($ignoreId) {
             $query->where('id', '!=', $ignoreId);
@@ -44,7 +45,7 @@ class EloquentUserRepository implements IUserRepository
     public function existsByEmail(string $email, ?string $ignoreId = null): bool
     {
         $query = EloquentUser::where('email', $email)
-            ->where('is_deleted', false);
+            ->where('is_deleted', false); // This is boolean false, not string
 
         if ($ignoreId) {
             $query->where('id', '!=', $ignoreId);
@@ -58,7 +59,7 @@ class EloquentUserRepository implements IUserRepository
         if (empty($mobileNo)) return false;
 
         $query = EloquentUser::where('mobile_no', $mobileNo)
-            ->where('is_deleted', false);
+            ->where('is_deleted', false); // This is boolean false, not string
 
         if ($ignoreId) {
             $query->where('id', '!=', $ignoreId);
@@ -72,7 +73,7 @@ class EloquentUserRepository implements IUserRepository
         if (empty($nid)) return false;
 
         $query = EloquentUser::where('nid', $nid)
-            ->where('is_deleted', false);
+            ->where('is_deleted', false); // This is boolean false, not string
 
         if ($ignoreId) {
             $query->where('id', '!=', $ignoreId);
@@ -85,14 +86,23 @@ class EloquentUserRepository implements IUserRepository
 
     public function getByIdentifier(string $identifier): ?UserEntity
     {
+        // Add debug logging
+        Log::info('Searching for user with identifier: ' . $identifier);
+
         $model = EloquentUser::with(['roles.permissions', 'permissions'])
             ->where('is_deleted', false)
             ->where(function($q) use ($identifier) {
                 $q->where('username', $identifier)
-                  ->orWhere('email', $identifier)
-                  ->orWhere('mobile_no', $identifier);
+                ->orWhere('email', $identifier)
+                ->orWhere('mobile_no', $identifier);
             })
             ->first();
+
+        if ($model) {
+            Log::info('User found: ' . $model->username);
+        } else {
+            Log::info('User NOT found with identifier: ' . $identifier);
+        }
 
         return $model ? $this->mapToEntity($model) : null;
     }
@@ -346,6 +356,17 @@ class EloquentUserRepository implements IUserRepository
         $hasUserLogs = EloquentUserLog::where('created_by', $userId)->exists();
         $hasRefreshTokens = EloquentRefreshToken::where('user_id', $userId)->exists();
         $hasPasswordResets = EloquentPasswordReset::where('user_id', $userId)->exists();
+        // $hasMail = DB::table('mail')->where('created_by', $userId)->exists();
+        // $hasMailVerifications = DB::table('mail_verifications')->where('user_id', $userId)->exists();
+
+        Log::info('Checking related records for user', [
+            'user_id' => $userId,
+            'hasUserLogs' => $hasUserLogs,
+            'hasRefreshTokens' => $hasRefreshTokens,
+            'hasPasswordResets' => $hasPasswordResets,
+            // 'hasMail' => $hasMail,
+            // 'hasMailVerifications' => $hasMailVerifications
+        ]);
 
         return $hasUserLogs || $hasRefreshTokens || $hasPasswordResets;
     }
@@ -390,23 +411,64 @@ class EloquentUserRepository implements IUserRepository
         // Delete profile image
         $this->deleteUserProfileImage($user->profile_image);
 
-        // Delete related records
-        DB::table('model_roles')
-            ->where('model_id', $userId)
-            ->where('model_name', 'User')
-            ->delete();
+        // Start a transaction to ensure all deletions succeed or fail together
+        DB::beginTransaction();
 
-        DB::table('model_permissions')
-            ->where('model_id', $userId)
-            ->where('model_name', 'User')
-            ->delete();
+        try {
+            // Delete related records in the correct order to avoid foreign key constraints
 
-        DB::table('mail_verifications')
-            ->where('user_id', $userId)
-            ->delete();
+            // 1. Delete mail records where user is the creator
+            DB::table('mail')
+                ->where('created_by', $userId)
+                ->delete();
 
-        // Finally delete the user
-        $user->forceDelete();
+            // 2. Delete mail_verifications
+            DB::table('mail_verifications')
+                ->where('user_id', $userId)
+                ->delete();
+
+            // 3. Delete model_roles
+            DB::table('model_roles')
+                ->where('model_id', $userId)
+                ->where('model_name', 'User')
+                ->delete();
+
+            // 4. Delete model_permissions
+            DB::table('model_permissions')
+                ->where('model_id', $userId)
+                ->where('model_name', 'User')
+                ->delete();
+
+            // 5. Delete password_reset records
+            DB::table('password_reset')
+                ->where('user_id', $userId)
+                ->delete();
+
+            // 6. Delete refresh_tokens
+            DB::table('refresh_tokens')
+                ->where('user_id', $userId)
+                ->delete();
+
+            // 7. Delete user_logs
+            DB::table('user_logs')
+                ->where('created_by', $userId)
+                ->delete();
+
+            // 8. Finally delete the user
+            $user->forceDelete();
+
+            DB::commit();
+
+            Log::info('User permanently deleted with all related records', ['user_id' => $userId]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error during hard delete', [
+                'user_id' => $userId,
+                'error' => $e->getMessage()
+            ]);
+            throw $e;
+        }
     }
 
     public function softDelete(string $userId, ?string $deletedBy = null): void

@@ -39,7 +39,8 @@ class PasswordResetService implements IPasswordResetService
      */
     public function requestPasswordReset(string $email): void
     {
-        $user = $this->userRepository->findByEmail($email);
+        // Use getByEmail or findByEmail - check which one exists in your repository
+        $user = $this->userRepository->getByEmail($email); // or getByEmail
 
         if (!$user) {
             throw new Exception("Email not registered.");
@@ -57,9 +58,10 @@ class PasswordResetService implements IPasswordResetService
             createdAt: new DateTimeImmutable()
         );
 
-        $savedReset = $this->passwordResetRepository->create($resetEntity);
+        // FIX: Use add() instead of create()
+        $savedReset = $this->passwordResetRepository->add($resetEntity);
 
-        $frontendAdminUrl = env('FrontendAdminUrl');
+        $frontendAdminUrl = env('FrontendAdminUrl', 'http://localhost:5173');
         $resetLink = "{$frontendAdminUrl}/reset-password/{$token}";
 
         $bodyContent = "
@@ -73,38 +75,38 @@ class PasswordResetService implements IPasswordResetService
         ";
 
         $fullBody = $this->mailService->buildEmailTemplate(
-            "Reset your password",
-            $bodyContent
+            $bodyContent,
+            "Reset your password"
         );
 
+        // FIX: Use attachmentsJson instead of attachments
         $mail = new \Modules\Shared\Domain\Entities\Mail(
             id: 0,
-            fromMail: "noreply@shop.com",
+            fromMail: env('MAIL_FROM_ADDRESS', 'noreply@shop.com'),
             toMail: $user->email,
             subject: "Reset your password",
             body: $fullBody,
             moduleName: "Auth",
             purpose: "PasswordReset",
+            attachmentsJson: null,
             createdBy: $user->id,
-            attachments: []
+            createdAt: new DateTimeImmutable()
         );
 
         $this->mailService->sendEmail($mail);
 
-        // ---------------------------------------------------------
-        // ✅ USER LOG: Password Reset Requested
-        // ---------------------------------------------------------
+        // USER LOG: Password Reset Requested
         try {
             $this->userLogHelper->log(
                 actionType: "Create",
                 detail: "User requested password reset.",
                 changes: null,
                 modelName: "PasswordReset",
-                modelId: $savedReset->id
+                modelId: $savedReset->id,
+                userId: $user->id
             );
         } catch (\Exception $ex) {
-            // Avoid breaking flow if logging fails
-           Log::error("UserLog Error (RequestPasswordReset): " . $ex->getMessage());
+            Log::error("UserLog Error (RequestPasswordReset): " . $ex->getMessage());
         }
     }
 
@@ -113,7 +115,7 @@ class PasswordResetService implements IPasswordResetService
      */
     public function validateToken(string $token): bool
     {
-        $reset = $this->passwordResetRepository->findByToken($token);
+        $reset = $this->passwordResetRepository->getByToken($token);
         return $reset && !$reset->used && !$reset->isExpired();
     }
 
@@ -125,22 +127,22 @@ class PasswordResetService implements IPasswordResetService
         $token = $request->input('token');
         $password = $request->input('password');
 
-        $reset = $this->passwordResetRepository->findByToken($token);
+        $reset = $this->passwordResetRepository->getByToken($token);
 
         if (!$reset || $reset->used || $reset->isExpired()) {
             throw new Exception("Invalid or expired token.");
         }
 
-        $user = $this->userRepository->findById($reset->userId);
+        $user = $this->userRepository->getById($reset->userId);
 
         if (!$user) {
             throw new Exception("User not found.");
         }
 
-        // 🟡 Store old password hash
+        // Store old password hash
         $oldPasswordHash = $user->password;
 
-        // 🔐 Hash new password
+        // Hash new password
         $user->password = Hash::make($password);
         $this->userRepository->update($user);
 
@@ -148,21 +150,20 @@ class PasswordResetService implements IPasswordResetService
         $reset->markUsed();
         $this->passwordResetRepository->update($reset);
 
-        // ---------------------------------------------------------
-        // ✅ USER LOG: Password Reset Completed
-        // ---------------------------------------------------------
+        // USER LOG: Password Reset Completed
         $changes = [
-            'before' => ['password' => $oldPasswordHash],
-            'after'  => ['password' => $user->password]
+            'before' => ['password' => '[REDACTED]'],
+            'after'  => ['password' => '[REDACTED]']
         ];
 
         try {
             $this->userLogHelper->log(
                 actionType: "Update",
                 detail: "User successfully reset password.",
-                changes: $changes,
+                changes: json_encode($changes),
                 modelName: "User",
-                modelId: $user->id
+                modelId: $user->id,
+                userId: $user->id
             );
         } catch (\Exception $ex) {
             Log::error("UserLog Error (ResetPassword): " . $ex->getMessage());

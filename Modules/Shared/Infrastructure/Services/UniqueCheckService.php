@@ -7,64 +7,59 @@ use Modules\Shared\Application\Requests\Common\CheckUniqueRequest;
 use Modules\Shared\Infrastructure\Models\EloquentUser;
 use Modules\Shared\Infrastructure\Models\EloquentRole;
 use Modules\Shared\Infrastructure\Models\EloquentPermission;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Log;
 
 class UniqueCheckService implements IUniqueCheckService
 {
-    /**
-     * Allowed models mapping
-     */
     private const ALLOWED_MODELS = [
         'User' => EloquentUser::class,
         'Role' => EloquentRole::class,
         'Permission' => EloquentPermission::class,
     ];
 
-    /**
-     * Check if a value exists in a specific model field
-     */
+    private array $columnCache = [];
+
     public function exists(CheckUniqueRequest $request): bool
     {
-        // Validate model
-        if (!isset(self::ALLOWED_MODELS[$request->model])) {
-            throw new \InvalidArgumentException("Invalid model: {$request->model}");
-        }
-
-        $modelClass = self::ALLOWED_MODELS[$request->model];
-
-        // Validate field exists in model
-        if (!$this->fieldExistsInModel($modelClass, $request->fieldName)) {
-            throw new \InvalidArgumentException("Invalid field name: {$request->fieldName}");
-        }
-
-        // Convert value to proper type based on model field type
-        $convertedValue = $this->convertToType($request->fieldValue, $modelClass, $request->fieldName);
-
-        // Build query
-        $query = $modelClass::query();
-
-        // Add main condition
-        $query->where($request->fieldName, $convertedValue);
-
-        // Add except condition if provided
-        if (!empty($request->exceptFieldName) && !empty($request->exceptFieldValue)) {
-            // Validate except field exists
-            if (!$this->fieldExistsInModel($modelClass, $request->exceptFieldName)) {
-                throw new \InvalidArgumentException("Invalid except field name: {$request->exceptFieldName}");
+        try {
+            // Validate model
+            if (!isset(self::ALLOWED_MODELS[$request->model])) {
+                throw new \InvalidArgumentException("Invalid model: {$request->model}");
             }
 
-            $convertedExceptValue = $this->convertToType(
-                $request->exceptFieldValue,
-                $modelClass,
-                $request->exceptFieldName
-            );
+            $modelClass = self::ALLOWED_MODELS[$request->model];
+            $model = new $modelClass();
+            $table = $model->getTable();
 
-            $query->where($request->exceptFieldName, '!=', $convertedExceptValue);
+            // Map field names to database column names
+            $fieldName = $this->mapFieldName($request->fieldName);
+
+            // Validate field exists
+            if (!$this->fieldExistsInTable($table, $fieldName)) {
+                throw new \InvalidArgumentException("Invalid field name: {$request->fieldName}");
+            }
+
+            // Build query
+            $query = $modelClass::query()->where($fieldName, $request->fieldValue);
+
+            // Handle except condition
+            if (!empty($request->exceptFieldName) && !empty($request->exceptFieldValue)) {
+                $exceptField = $this->mapFieldName($request->exceptFieldName);
+
+                if (!$this->fieldExistsInTable($table, $exceptField)) {
+                    throw new \InvalidArgumentException("Invalid except field name: {$request->exceptFieldName}");
+                }
+
+                $query->where($exceptField, '!=', $request->exceptFieldValue);
+            }
+
+            return $query->exists();
+
+        } catch (\Exception $e) {
+            Log::error('Unique check failed: ' . $e->getMessage());
+            throw $e;
         }
-
-        return $query->exists();
     }
 
     public function existsAsync(CheckUniqueRequest $request): bool
@@ -72,80 +67,30 @@ class UniqueCheckService implements IUniqueCheckService
         return $this->exists($request);
     }
 
-    /**
-     * Check if a field exists in the model's table
-     */
-    private function fieldExistsInModel(string $modelClass, string $fieldName): bool
+    private function fieldExistsInTable(string $table, string $fieldName): bool
     {
-        /** @var Model $model */
-        $model = new $modelClass();
-        $table = $model->getTable();
+        $cacheKey = $table . '.' . $fieldName;
 
-        return Schema::hasColumn($table, $fieldName);
-    }
-
-    /**
-     * Get the PHP type of a model field
-     */
-    private function getFieldType(string $modelClass, string $fieldName): string
-    {
-        /** @var Model $model */
-        $model = new $modelClass();
-        $casts = $model->getCasts();
-
-        // Check if field is cast to a specific type
-        if (isset($casts[$fieldName])) {
-            return $casts[$fieldName];
+        if (isset($this->columnCache[$cacheKey])) {
+            return $this->columnCache[$cacheKey];
         }
 
-        // Check migration/table column type
-        $table = $model->getTable();
-        $columnType = DB::connection()->getDoctrineColumn($table, $fieldName)->getType()->getName();
+        $columns = Schema::getColumnListing($table);
+        $exists = in_array(strtolower($fieldName), array_map('strtolower', $columns));
 
-        return match ($columnType) {
-            'integer', 'bigint', 'smallint' => 'int',
-            'decimal', 'float' => 'float',
-            'boolean' => 'bool',
-            'datetime', 'date', 'timestamp' => 'datetime',
-            'guid', 'uuid' => 'string', // UUIDs are stored as strings in Laravel
-            default => 'string',
+        $this->columnCache[$cacheKey] = $exists;
+        return $exists;
+    }
+
+    private function mapFieldName(string $fieldName): string
+    {
+        return match($fieldName) {
+            'Username' => 'username',
+            'Email' => 'email',
+            'MobileNo' => 'mobile_no',
+            'NID' => 'nid',
+            'Id' => 'id',
+            default => strtolower($fieldName)
         };
-    }
-
-    /**
-     * Convert string value to the appropriate type based on model field
-     */
-    private function convertToType(string $value, string $modelClass, string $fieldName): mixed
-    {
-        if (empty($value)) {
-            return null;
-        }
-
-        $type = $this->getFieldType($modelClass, $fieldName);
-
-        return match ($type) {
-            'int', 'integer' => (int) $value,
-            'float', 'double', 'decimal' => (float) $value,
-            'bool', 'boolean' => filter_var($value, FILTER_VALIDATE_BOOLEAN),
-            'datetime', 'date', 'timestamp' => $value, // Leave as string for DB comparison
-            'json', 'array' => json_decode($value, true),
-            default => (string) $value,
-        };
-    }
-
-    /**
-     * Get the model class from model name
-     */
-    public static function getModelClass(string $modelName): ?string
-    {
-        return self::ALLOWED_MODELS[$modelName] ?? null;
-    }
-
-    /**
-     * Check if a model is allowed
-     */
-    public static function isModelAllowed(string $modelName): bool
-    {
-        return isset(self::ALLOWED_MODELS[$modelName]);
     }
 }

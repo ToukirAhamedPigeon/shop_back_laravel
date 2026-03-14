@@ -17,12 +17,14 @@ use Modules\Shared\Infrastructure\Repositories\EloquentRolePermissionRepository;
 use Modules\Shared\Application\Repositories\ITranslationRepository;
 use Modules\Shared\Infrastructure\Repositories\EloquentTranslationRepository;
 use Modules\Shared\Application\Repositories\IMailRepository;
+use Modules\Shared\Application\Repositories\IMailVerificationRepository;
 use Modules\Shared\Infrastructure\Repositories\EloquentMailRepository;
 use Modules\Shared\Infrastructure\Services\MailService;
 use Modules\Shared\Application\Services\IMailService;
 use Modules\Shared\Application\Repositories\IPasswordResetRepository;
 use Modules\Shared\Application\Repositories\IUserLogRepository;
 use Modules\Shared\Application\Repositories\IUserTableCombinationRepository;
+use Modules\Shared\Application\Services\Authorization\IPermissionFilter;
 use Modules\Shared\Infrastructure\Repositories\EloquentPasswordResetRepository;
 use Modules\Shared\Infrastructure\Services\PasswordResetService;
 use Modules\Shared\Application\Services\IPasswordResetService;
@@ -33,11 +35,19 @@ use Modules\Shared\Infrastructure\Repositories\EloquentUserLogRepository;
 use Modules\Shared\Infrastructure\Repositories\EloquentUserTableCombinationRepository;
 use Modules\Shared\Infrastructure\Services\UserTableCombinationService;
 use Modules\Shared\Application\Services\Authorization\IPermissionHandlerService;
+use Modules\Shared\Application\Services\IChangePasswordService;
+use Modules\Shared\Application\Services\IMailVerificationService;
 use Modules\Shared\Application\Services\IUserService;
-use Modules\Shared\Application\Services\UserService;
 use Modules\Shared\Infrastructure\Services\Authorization\PermissionHandlerService;
 use Modules\Shared\Application\Services\IOptionsService;
+use Modules\Shared\Infrastructure\Repositories\EloquentMailVerificationRepository;
+use Modules\Shared\Infrastructure\Services\ChangePasswordService;
+use Modules\Shared\Infrastructure\Services\MailVerificationService;
 use Modules\Shared\Infrastructure\Services\OptionsService;
+use Modules\Shared\Infrastructure\Services\UserService;
+use Modules\Shared\Infrastructure\Services\Authorization\PermissionFilterService;
+use Modules\Shared\Application\Services\IUniqueCheckService;
+use Modules\Shared\Infrastructure\Services\UniqueCheckService;
 
 class SharedServiceProvider extends ServiceProvider
 {
@@ -77,6 +87,9 @@ class SharedServiceProvider extends ServiceProvider
         $this->app->bind(IPasswordResetService::class, PasswordResetService::class);
         $this->app->bind(IMailRepository::class, EloquentMailRepository::class);
         $this->app->bind(IMailService::class, MailService::class);
+        $this->app->bind(IMailVerificationRepository::class, EloquentMailVerificationRepository::class);
+        $this->app->bind(IMailVerificationService::class, MailVerificationService::class);
+        $this->app->bind(IChangePasswordService::class, ChangePasswordService::class);
         $this->app->bind(IUserLogRepository::class, EloquentUserLogRepository::class);
         $this->app->bind(IUserLogService::class, UserLogService::class);
         $this->app->bind(IUserRepository::class, EloquentUserRepository::class);
@@ -84,6 +97,8 @@ class SharedServiceProvider extends ServiceProvider
         $this->app->bind(IOptionsService::class, OptionsService::class);
         $this->app->bind(IUserTableCombinationRepository::class, EloquentUserTableCombinationRepository::class);
         $this->app->bind(IUserTableCombinationService::class, UserTableCombinationService::class);
+        $this->app->bind(IPermissionFilter::class, PermissionFilterService::class);
+         $this->app->bind(IUniqueCheckService::class, UniqueCheckService::class);
     }
 
     protected function registerConfig(): void

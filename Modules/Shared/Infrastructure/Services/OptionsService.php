@@ -2,7 +2,7 @@
 
 namespace Modules\Shared\Infrastructure\Services;
 
-use Illuminate\Support\Facades\Redis;
+use Illuminate\Support\Facades\Cache;
 use Modules\Shared\Application\Services\IOptionsService;
 use Modules\Shared\Application\Repositories\IUserLogRepository;
 use Modules\Shared\Application\Repositories\IUserRepository;
@@ -15,7 +15,6 @@ class OptionsService implements IOptionsService
     private IUserLogRepository $userLogRepository;
     private IUserRepository $userRepository;
     private IRolePermissionRepository $rolePermissionRepository;
-    private \Predis\Client $redis;
     private int $cacheTtl = 3600; // 1 hour in seconds
 
     public function __construct(
@@ -26,7 +25,6 @@ class OptionsService implements IOptionsService
         $this->userLogRepository = $userLogRepository;
         $this->userRepository = $userRepository;
         $this->rolePermissionRepository = $rolePermissionRepository;
-        $this->redis = Redis::connection()->client();
     }
 
     /**
@@ -48,42 +46,27 @@ class OptionsService implements IOptionsService
             md5($whereJson)
         );
 
-        // Try cache first
-        $cached = $this->redis->get($cacheKey);
+        // Use Laravel's Cache facade (automatically uses Redis)
+        return Cache::remember($cacheKey, $this->cacheTtl, function () use ($type, $req) {
+            $result = match (strtolower($type)) {
+                'userlogcollections' => $this->formatSelectOptionResult($this->userLogRepository->getDistinctModelNames($req)),
+                'userlogactiontypes' => $this->formatSelectOptionResult($this->userLogRepository->getDistinctActionTypes($req)),
+                'userlogcreators'    => $this->formatSelectOptionResult($this->userLogRepository->getDistinctCreators($req)),
+                'usercreators'       => $this->formatSelectOptionResult($this->userRepository->getDistinctCreators($req)),
+                'userupdaters'       => $this->formatSelectOptionResult($this->userRepository->getDistinctUpdaters($req)),
+                'userdatetypes'      => $this->formatSelectOptionResult($this->userRepository->getDistinctDateTypes($req)),
+                'roles'              => $this->getAllRoles($req),
+                'permissions'        => $this->getAllPermissions($req),
+                default              => []
+            };
 
-        if ($cached) {
-            // Cache hit
-            // Log::debug("Cache HIT for {$type}");
-            return json_decode($cached, true);
-        }
+            // Normalize labels
+            foreach ($result as &$item) {
+                $item['label'] = LabelFormatter::toReadable($item['label']);
+            }
 
-        // Cache miss, fetch from repositories
-        // Log::debug("Cache MISS for {$type}, fetching from repository...");
-
-        $result = match (strtolower($type)) {
-            'userlogcollections' => $this->getUserLogCollections($req),
-            'userlogactiontypes' => $this->getUserLogActionTypes($req),
-            'userlogcreators'    => $this->getUserLogCreators($req),
-            'usercreators'       => $this->getUserCreators($req),
-            'userupdaters'       => $this->getUserUpdaters($req),
-            'userdatetypes'      => $this->getUserDateTypes($req),
-            'roles'              => $this->getAllRoles($req),
-            'permissions'        => $this->getAllPermissions($req),
-            default              => []
-        };
-
-        // Log::debug("Repository returned " . count($result) . " items");
-
-        // Normalize labels
-        foreach ($result as &$item) {
-            $item['label'] = LabelFormatter::toReadable($item['label']);
-        }
-
-        // Cache the result
-        $this->redis->setex($cacheKey, $this->cacheTtl, json_encode($result));
-        // Log::debug("Cached result for {$type}");
-
-        return $result;
+            return $result;
+        });
     }
 
     public function getOptionsAsync(string $type, SelectOptionRequest $req): array
@@ -92,57 +75,29 @@ class OptionsService implements IOptionsService
     }
 
     /**
-     * Get user log collections (model names)
+     * Format SelectOptionResource objects to arrays
      */
-    private function getUserLogCollections(SelectOptionRequest $req): array
+    private function formatSelectOptionResult($items): array
     {
-        // Log::debug("Calling userLogRepository->getDistinctModelNames");
-        return $this->userLogRepository->getDistinctModelNames($req);
-    }
+        $result = [];
 
-    /**
-     * Get user log action types
-     */
-    private function getUserLogActionTypes(SelectOptionRequest $req): array
-    {
-        // Log::debug("Calling userLogRepository->getDistinctActionTypes");
-        return $this->userLogRepository->getDistinctActionTypes($req);
-    }
+        foreach ($items as $item) {
+            if (is_object($item) && method_exists($item, 'toArray')) {
+                // If it's a SelectOptionResource with toArray method
+                $result[] = $item->toArray();
+            } elseif (is_object($item) && isset($item->value) && isset($item->label)) {
+                // If it's an object with value/label properties
+                $result[] = ['value' => (string) $item->value, 'label' => (string) $item->label];
+            } elseif (is_array($item) && isset($item['value']) && isset($item['label'])) {
+                // If it's already an array with value/label
+                $result[] = $item;
+            } elseif (is_string($item)) {
+                // If it's just a string
+                $result[] = ['value' => $item, 'label' => $item];
+            }
+        }
 
-    /**
-     * Get user log creators
-     */
-    private function getUserLogCreators(SelectOptionRequest $req): array
-    {
-        // Log::debug("Calling userLogRepository->getDistinctCreators");
-        return $this->userLogRepository->getDistinctCreators($req);
-    }
-
-    /**
-     * Get user creators
-     */
-    private function getUserCreators(SelectOptionRequest $req): array
-    {
-        // Log::debug("Calling userRepository->getDistinctCreators");
-        return $this->userRepository->getDistinctCreators($req);
-    }
-
-    /**
-     * Get user updaters
-     */
-    private function getUserUpdaters(SelectOptionRequest $req): array
-    {
-        // Log::debug("Calling userRepository->getDistinctUpdaters");
-        return $this->userRepository->getDistinctUpdaters($req);
-    }
-
-    /**
-     * Get user date types
-     */
-    private function getUserDateTypes(SelectOptionRequest $req): array
-    {
-        // Log::debug("Calling userRepository->getDistinctDateTypes");
-        return $this->userRepository->getDistinctDateTypes($req);
+        return $result;
     }
 
     /**
@@ -150,7 +105,6 @@ class OptionsService implements IOptionsService
      */
     private function getAllRoles(SelectOptionRequest $req): array
     {
-        // Log::debug("Calling rolePermissionRepository->getAllRoles");
         $roles = $this->rolePermissionRepository->getAllRoles();
 
         $result = [];
@@ -180,7 +134,6 @@ class OptionsService implements IOptionsService
      */
     private function getAllPermissions(SelectOptionRequest $req): array
     {
-        // Log::debug("Calling rolePermissionRepository->getAllPermissions");
         $permissions = $this->rolePermissionRepository->getAllPermissions();
 
         $result = [];

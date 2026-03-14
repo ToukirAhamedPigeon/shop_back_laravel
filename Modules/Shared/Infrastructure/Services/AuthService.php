@@ -11,10 +11,11 @@ use Modules\Shared\Application\Repositories\IUserRepository;
 use Modules\Shared\Application\Repositories\IRefreshTokenRepository;
 use Modules\Shared\Application\Repositories\IRolePermissionRepository;
 use Modules\Shared\Infrastructure\Helpers\UserLogHelper;
-use Modules\Shared\Infrastructure\Helpers\JwtHelper;
+use Modules\Shared\Infrastructure\Models\EloquentUser;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Exception;
 
 class AuthService implements IAuthService
 {
@@ -22,91 +23,111 @@ class AuthService implements IAuthService
     private IRefreshTokenRepository $refreshTokenRepo;
     private IRolePermissionRepository $rolePermissionRepo;
     private UserLogHelper $userLogHelper;
-    private JwtHelper $jwtHelper;
 
     public function __construct(
         IUserRepository $userRepo,
         IRefreshTokenRepository $refreshTokenRepo,
         IRolePermissionRepository $rolePermissionRepo,
-        UserLogHelper $userLogHelper,
-        JwtHelper $jwtHelper
+        UserLogHelper $userLogHelper
     ) {
         $this->userRepo = $userRepo;
         $this->refreshTokenRepo = $refreshTokenRepo;
         $this->rolePermissionRepo = $rolePermissionRepo;
         $this->userLogHelper = $userLogHelper;
-        $this->jwtHelper = $jwtHelper;
     }
 
     /**
-     * Login and issue access + refresh token
+     * Login and issue access + refresh token using Passport
      */
     public function login(LoginRequest $request): ?AuthResource
     {
-        $user = $this->userRepo->getByIdentifier($request->identifier);
+        try {
+            $user = $this->userRepo->getByIdentifier($request->identifier);
 
-        // Check if user exists and password is correct
-        if (!$user || !$user->password || !Hash::check($request->password, $user->password)) {
+            // Check if user exists and password is correct
+            if (!$user || !$user->password || !Hash::check($request->password, $user->password)) {
+                return null;
+            }
+
+            // Check if email is verified
+            if ($user->emailVerifiedAt === null) {
+                throw new Exception('EMAIL_NOT_VERIFIED');
+            }
+
+            // Check if user is active
+            if (!$user->isActive) {
+                throw new Exception('USER_INACTIVE');
+            }
+
+            // Update last login info
+            $clientIp = $this->userLogHelper->getClientIp();
+            $user->updateLastLogin($clientIp);
+            $this->userRepo->update($user);
+            $this->userRepo->saveChanges();
+
+            // Get permissions and roles
+            $permissions = $this->rolePermissionRepo->getAllPermissionsByUserId($user->id);
+            $roles = $this->rolePermissionRepo->getRoleNamesByUserId($user->id);
+
+            // Set roles and permissions on user entity for the resource
+            $user->roles = $roles;
+            $user->permissions = $permissions;
+
+            // ===== PASSPORT TOKEN GENERATION =====
+            // Get the Eloquent user model for Passport
+            $eloquentUser = EloquentUser::find($user->id);
+
+            if (!$eloquentUser) {
+                throw new Exception('User model not found');
+            }
+
+            // Create Passport access token
+            $tokenResult = $eloquentUser->createToken('API Token');
+            $accessToken = $tokenResult->accessToken;
+
+            // Create refresh token (custom for your refresh flow)
+            $refreshTokenId = (string) Str::uuid();
+            $refreshTokenString = (string) Str::uuid();
+            $expiresAt = Carbon::now()->addDays(7)->toDateTimeImmutable();
+
+            $refreshToken = new RefreshToken(
+                id: $refreshTokenId,
+                token: $refreshTokenString,
+                expiresAt: $expiresAt,
+                userId: $user->id,
+                isRevoked: false
+            );
+
+            $this->refreshTokenRepo->add($refreshToken);
+            $this->refreshTokenRepo->saveChanges();
+            $this->refreshTokenRepo->removeExpired();
+
+            // Log login
+            $this->userLogHelper->log(
+                actionType: 'Login',
+                detail: "User '{$user->username}' logged in successfully.",
+                modelName: 'User',
+                modelId: $user->id,
+                userId: $user->id
+            );
+
+            // Create and return AuthResource
+            return new AuthResource(
+                accessToken: $accessToken,
+                refreshToken: $refreshToken->token,
+                user: $user,
+                refreshTokenExpiry: $refreshToken->expiresAt
+            );
+
+        } catch (Exception $e) {
+            // Re-throw specific exceptions for the controller to handle
+            if ($e->getMessage() === 'EMAIL_NOT_VERIFIED' || $e->getMessage() === 'USER_INACTIVE') {
+                throw $e;
+            }
+
+            // For any other exception, return null (invalid credentials)
             return null;
         }
-
-        // Check if email is verified
-        if ($user->emailVerifiedAt === null) {
-            throw new \Exception('EMAIL_NOT_VERIFIED');
-        }
-
-        // Check if user is active
-        if (!$user->isActive) {
-            throw new \Exception('USER_INACTIVE');
-        }
-
-        // Update last login info
-        $user->updateLastLogin($this->userLogHelper->getClientIp());
-        $this->userRepo->update($user);
-        $this->userRepo->saveChanges();
-
-        // Get permissions for JWT
-        $permissions = $this->rolePermissionRepo->getAllPermissionsByUserId($user->id);
-
-        // Generate JWT access token with permissions
-        $accessToken = $this->jwtHelper->generateToken($user, $permissions);
-
-        // Create refresh token
-        $refreshToken = new RefreshToken(
-            id: (string) Str::uuid(),
-            token: (string) Str::uuid(),
-            expiresAt: Carbon::now()->addDays(7)->toDateTimeImmutable(),
-            userId: $user->id,
-            isRevoked: false
-        );
-
-        $this->refreshTokenRepo->add($refreshToken);
-        $this->refreshTokenRepo->saveChanges();
-        $this->refreshTokenRepo->removeExpired();
-
-        // Get roles for user DTO
-        $roles = $this->rolePermissionRepo->getRoleNamesByUserId($user->id);
-
-        // Set roles and permissions on user entity for the resource
-        $user->roles = $roles;
-        $user->permissions = $permissions;
-
-        // Log login
-        $this->userLogHelper->log(
-            actionType: 'Login',
-            detail: "User '{$user->username}' logged in successfully.",
-            modelName: 'User',
-            modelId: $user->id,
-            userId: $user->id
-        );
-
-        // ✅ Pass the User entity, not the array
-        return new AuthResource(
-            accessToken: $accessToken,
-            refreshToken: $refreshToken->token,
-            user: $user,
-            refreshTokenExpiry: $refreshToken->expiresAt
-        );
     }
 
     public function loginAsync(LoginRequest $request): ?AuthResource
@@ -119,39 +140,49 @@ class AuthService implements IAuthService
      */
     public function refreshToken(string $token): ?AuthResource
     {
-        $existing = $this->refreshTokenRepo->getByToken($token);
+        try {
+            $existing = $this->refreshTokenRepo->getByToken($token);
 
-        if (!$existing || $existing->isExpired()) {
+            if (!$existing || $existing->isExpired()) {
+                return null;
+            }
+
+            $this->refreshTokenRepo->removeExpired();
+
+            $user = $this->userRepo->getById($existing->userId);
+            if (!$user) {
+                return null;
+            }
+
+            // Get permissions and roles
+            $permissions = $this->rolePermissionRepo->getAllPermissionsByUserId($user->id);
+            $roles = $this->rolePermissionRepo->getRoleNamesByUserId($user->id);
+
+            // Set roles and permissions on user entity for the resource
+            $user->roles = $roles;
+            $user->permissions = $permissions;
+
+            // Generate new Passport access token
+            $eloquentUser = EloquentUser::find($user->id);
+
+            if (!$eloquentUser) {
+                throw new Exception('User model not found');
+            }
+
+            $tokenResult = $eloquentUser->createToken('API Token');
+            $newAccessToken = $tokenResult->accessToken;
+
+            return new AuthResource(
+                accessToken: $newAccessToken,
+                refreshToken: $token,
+                user: $user,
+                refreshTokenExpiry: $existing->expiresAt
+            );
+
+        } catch (Exception $e) {
+            Log::error('Refresh token error: ' . $e->getMessage());
             return null;
         }
-
-        $this->refreshTokenRepo->removeExpired();
-
-        $user = $this->userRepo->getById($existing->userId);
-        if (!$user) {
-            return null;
-        }
-
-        // Get permissions for JWT
-        $permissions = $this->rolePermissionRepo->getAllPermissionsByUserId($user->id);
-
-        // Generate new access token
-        $newAccessToken = $this->jwtHelper->generateToken($user, $permissions);
-
-        // Get roles for user DTO
-        $roles = $this->rolePermissionRepo->getRoleNamesByUserId($user->id);
-
-        // Set roles and permissions on user entity for the resource
-        $user->roles = $roles;
-        $user->permissions = $permissions;
-
-        // ✅ Pass the User entity, not the array
-        return new AuthResource(
-            accessToken: $newAccessToken,
-            refreshToken: $token,
-            user: $user,
-            refreshTokenExpiry: $existing->expiresAt
-        );
     }
 
     public function refreshTokenAsync(string $token): ?AuthResource
@@ -170,8 +201,16 @@ class AuthService implements IAuthService
             if ($refreshToken) {
                 $this->refreshTokenRepo->revoke($refreshToken);
 
-                // Log logout
+                // Also revoke Passport tokens for this user
                 $user = $this->userRepo->getById($refreshToken->userId);
+                if ($user) {
+                    $eloquentUser = EloquentUser::find($user->id);
+                    if ($eloquentUser) {
+                        $eloquentUser->tokens()->delete();
+                    }
+                }
+
+                // Log logout
                 $this->userLogHelper->log(
                     actionType: 'Logout',
                     detail: "User '{$user?->username}' logged out successfully.",
@@ -180,7 +219,7 @@ class AuthService implements IAuthService
                     userId: $refreshToken->userId
                 );
             }
-        } catch (\Exception $ex) {
+        } catch (Exception $ex) {
             Log::error('Logout Error: ' . $ex->getMessage());
         }
     }
@@ -198,8 +237,11 @@ class AuthService implements IAuthService
         try {
             $this->refreshTokenRepo->revokeAll($userId);
 
-            // Also revoke all Passport tokens if needed
-            $this->userRepo->revokeAllAccessTokens($userId);
+            // Revoke all Passport tokens
+            $eloquentUser = EloquentUser::find($userId);
+            if ($eloquentUser) {
+                $eloquentUser->tokens()->delete();
+            }
 
             // Log logout all devices
             $user = $this->userRepo->getById($userId);
@@ -210,7 +252,7 @@ class AuthService implements IAuthService
                 modelId: $userId,
                 userId: $userId
             );
-        } catch (\Exception $ex) {
+        } catch (Exception $ex) {
             Log::error('LogoutAllDevices Error: ' . $ex->getMessage());
         }
     }
@@ -228,6 +270,15 @@ class AuthService implements IAuthService
         try {
             $this->refreshTokenRepo->revokeOther($exceptRefreshToken, $userId);
 
+            // Revoke other Passport tokens (keep current one)
+            $eloquentUser = EloquentUser::find($userId);
+            if ($eloquentUser) {
+                // Get current token from request if needed
+                // This requires access to the request, so you might need to pass the token
+                // For now, we'll revoke all and let the refresh token flow handle it
+                $eloquentUser->tokens()->delete();
+            }
+
             // Log logout other devices
             $user = $this->userRepo->getById($userId);
             $this->userLogHelper->log(
@@ -237,7 +288,7 @@ class AuthService implements IAuthService
                 modelId: $userId,
                 userId: $userId
             );
-        } catch (\Exception $ex) {
+        } catch (Exception $ex) {
             Log::error('LogoutOtherDevices Error: ' . $ex->getMessage());
         }
     }

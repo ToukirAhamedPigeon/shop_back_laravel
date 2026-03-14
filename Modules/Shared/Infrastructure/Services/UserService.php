@@ -134,6 +134,19 @@ class UserService implements IUserService
      */
     public function createUser(CreateUserRequest $request, ?string $createdBy): array
     {
+        // Log the request data for debugging
+        Log::info('CreateUser received:', [
+            'name' => $request->name,
+            'username' => $request->username,
+            'email' => $request->email,
+            'mobileNo' => $request->mobileNo,
+            'nid' => $request->nid,
+            'roles' => $request->roles,
+            'has_file' => $request->hasFile('profileImage'),
+            'has_file_capital' => $request->hasFile('ProfileImage'),
+            'all_input' => $request->all()
+        ]);
+
         // 1️⃣ Validation
         if (empty($request->name)) {
             return ['success' => false, 'message' => 'Name is required'];
@@ -206,21 +219,37 @@ class UserService implements IUserService
                 updatedBy: $createdByGuid
             );
 
-            // 8️⃣ Handle profile image using FileHelper
+            // 8️⃣ Handle profile image using FileHelper - FIX: Check both field names
+            $file = null;
             if ($request->hasFile('profileImage')) {
-                try {
-                    // FileHelper does validation (size, type)
-                    $imagePath = FileHelper::saveFile($request->file('profileImage'), 'users');
+                $file = $request->file('profileImage');
+                Log::info('Found profileImage field');
+            } elseif ($request->hasFile('ProfileImage')) {
+                $file = $request->file('ProfileImage');
+                Log::info('Found ProfileImage field');
+            }
 
+            if ($file) {
+                try {
+                    Log::info('Processing profile image', [
+                        'original_name' => $file->getClientOriginalName(),
+                        'size' => $file->getSize(),
+                        'mime' => $file->getMimeType()
+                    ]);
+
+                    $imagePath = FileHelper::saveFile($file, 'users');
                     if ($imagePath) {
-                        // Resize image
                         $this->resizeImage($imagePath, 1000, 1000);
                         $user->profileImage = $imagePath;
+                        Log::info('Image saved successfully', ['path' => $imagePath]);
                     }
                 } catch (\Exception $e) {
                     DB::rollBack();
-                    return ['success' => false, 'message' => $e->getMessage()];
+                    Log::error('Error saving profile image', ['error' => $e->getMessage()]);
+                    return ['success' => false, 'message' => 'Error saving profile image: ' . $e->getMessage()];
                 }
+            } else {
+                Log::info('No profile image file found in request');
             }
 
             // 9️⃣ Generate QR code
@@ -273,10 +302,14 @@ class UserService implements IUserService
             // 1️⃣4️⃣ Commit transaction
             DB::commit();
 
+            Log::info('User created successfully', ['username' => $user->username]);
+
             return ['success' => true, 'message' => 'User created successfully. Verification email sent.'];
         } catch (Exception $ex) {
             DB::rollBack();
-            Log::error('Error creating user: ' . $ex->getMessage());
+            Log::error('Error creating user: ' . $ex->getMessage(), [
+                'trace' => $ex->getTraceAsString()
+            ]);
             return ['success' => false, 'message' => "Error: {$ex->getMessage()}"];
         }
     }
@@ -317,6 +350,19 @@ class UserService implements IUserService
      */
     public function updateUser(string $id, UpdateUserRequest $request, ?string $currentUserId): array
     {
+        // Debug: Log the request data
+        Log::info('UserService updateUser received:', [
+            'id' => $id,
+            'name' => $request->name,
+            'username' => $request->username,
+            'email' => $request->email,
+            'mobile_no' => $request->mobile_no,
+            'roles' => $request->roles,
+            'has_file' => $request->hasFile('profile_image'),
+            'remove_profile_image' => $request->remove_profile_image,
+            'all_input' => $request->all()
+        ]);
+
         // 1️⃣ Fetch user
         $user = $this->repo->getById($id);
         if (!$user) {
@@ -332,8 +378,8 @@ class UserService implements IUserService
         }
 
         // 3️⃣ Validate roles exist
-        $validRoles = $this->rolePermissionRepo->validateRolesExist($request->roles);
-        if (count($validRoles) !== count($request->roles)) {
+        $validRoles = $this->rolePermissionRepo->validateRolesExist($request->roles ?? []);
+        if (count($validRoles) !== count($request->roles ?? [])) {
             return ['success' => false, 'message' => 'One or more roles are invalid'];
         }
 
@@ -345,7 +391,7 @@ class UserService implements IUserService
         $user->username = $request->username;
         $user->email = $request->email;
         $user->isActive = filter_var($request->isActive ?? 'true', FILTER_VALIDATE_BOOLEAN);
-        $user->mobileNo = $request->mobileNo;
+        $user->mobileNo = $request->mobile_no;
         $user->nid = $request->nid;
         $user->address = $request->address;
 
@@ -362,21 +408,18 @@ class UserService implements IUserService
         }
 
         // 7️⃣ Handle ProfileImage using FileHelper
-        if ($request->removeProfileImage) {
-            // Delete existing profile image
+        if ($request->remove_profile_image) {
             if (!empty($user->profileImage)) {
                 FileHelper::deleteFile($user->profileImage);
                 $user->profileImage = null;
             }
-        } elseif ($request->hasFile('profileImage')) {
-            // Delete old image
+        } elseif ($request->hasFile('profile_image')) {
             if (!empty($user->profileImage)) {
                 FileHelper::deleteFile($user->profileImage);
             }
 
-            // Save new image
             try {
-                $imagePath = FileHelper::saveFile($request->file('profileImage'), 'users');
+                $imagePath = FileHelper::saveFile($request->file('profile_image'), 'users');
                 if ($imagePath) {
                     $this->resizeImage($imagePath, 1000, 1000);
                     $user->profileImage = $imagePath;
@@ -387,9 +430,9 @@ class UserService implements IUserService
         }
 
         // 8️⃣ Update roles and permissions
-        $this->rolePermissionRepo->setRolesForUser($user->id, $request->roles);
+        $this->rolePermissionRepo->setRolesForUser($user->id, $request->roles ?? []);
 
-        $rolePermissions = $this->rolePermissionRepo->getPermissionsByRoleNames($request->roles);
+        $rolePermissions = $this->rolePermissionRepo->getPermissionsByRoleNames($request->roles ?? []);
         $filteredPermissions = array_diff($request->permissions ?? [], $rolePermissions);
 
         $this->rolePermissionRepo->setPermissionsForUser($user->id, $filteredPermissions);
@@ -397,7 +440,6 @@ class UserService implements IUserService
         // 9️⃣ Handle email verification if email changed
         if ($emailChanged) {
             $user->emailVerifiedAt = null;
-            // Send verification email
             $this->mailVerificationService->sendVerificationEmail($user);
         }
 
@@ -410,6 +452,8 @@ class UserService implements IUserService
         // 1️⃣1️⃣ Save changes
         $this->repo->update($user);
         $this->repo->saveChanges();
+
+        Log::info('User updated successfully', ['id' => $id]);
 
         return ['success' => true, 'message' => 'User updated successfully'];
     }
@@ -452,16 +496,29 @@ class UserService implements IUserService
             return ['success' => false, 'message' => 'User not found'];
         }
 
+        // Log the request data for debugging
+        Log::info('Updating profile with data:', [
+            'name' => $request->name,
+            'email' => $request->email,
+            'mobile_no' => $request->mobile_no,
+            'nid' => $request->nid,
+            'address' => $request->address,
+            'bio' => $request->bio,
+            'gender' => $request->gender,
+            'date_of_birth' => $request->date_of_birth,
+            'remove_profile_image' => $request->remove_profile_image,
+        ]);
+
         // 2️⃣ Validate email uniqueness if changed
-        if (strtolower($user->email) !== strtolower($request->email) &&
+        if (!empty($request->email) && strtolower($user->email) !== strtolower($request->email) &&
             $this->repo->existsByEmail($request->email, $userId)) {
             return ['success' => false, 'message' => 'Email already exists'];
         }
 
         // 3️⃣ Validate mobile number uniqueness if changed
-        if (!empty($request->mobileNo) &&
-            $request->mobileNo !== $user->mobileNo &&
-            $this->repo->existsByMobileNo($request->mobileNo, $userId)) {
+        if (!empty($request->mobile_no) &&
+            $request->mobile_no !== $user->mobileNo &&
+            $this->repo->existsByMobileNo($request->mobile_no, $userId)) {
             return ['success' => false, 'message' => 'Mobile number already exists'];
         }
 
@@ -472,31 +529,62 @@ class UserService implements IUserService
             return ['success' => false, 'message' => 'NID already exists'];
         }
 
-        $emailChanged = strtolower($user->email) !== strtolower($request->email);
+        $emailChanged = !empty($request->email) && strtolower($user->email) !== strtolower($request->email);
 
-        // 5️⃣ Update profile fields
-        $user->name = $request->name;
-        $user->email = $request->email;
-        $user->mobileNo = $request->mobileNo;
-        $user->nid = $request->nid;
-        $user->address = $request->address;
-        $user->bio = $request->bio;
-        $user->gender = $request->gender;
-        $user->dateOfBirth = $request->dateOfBirth ? Carbon::parse($request->dateOfBirth)->toDateTimeImmutable() : null;
+        // 5️⃣ Update profile fields (only if provided)
+        if (!empty($request->name)) {
+            $user->name = $request->name;
+        }
+
+        if (!empty($request->email)) {
+            $user->email = $request->email;
+        }
+
+        // Handle mobile_no - ALWAYS keep the existing value if not provided
+        // The field is required in the database, so we must never set it to null
+        if (isset($request->mobile_no)) {
+            // Only update if a value is provided (even empty string)
+            $user->mobileNo = $request->mobile_no;
+        }
+        // If mobile_no is not in the request, keep the existing value
+
+        if (!empty($request->nid)) {
+            $user->nid = $request->nid;
+        }
+
+        if (!empty($request->address)) {
+            $user->address = $request->address;
+        }
+
+        if (!empty($request->bio)) {
+            $user->bio = $request->bio;
+        }
+
+        if (!empty($request->gender)) {
+            $user->gender = $request->gender;
+        }
+
+        if (!empty($request->date_of_birth)) {
+            try {
+                $user->dateOfBirth = Carbon::parse($request->date_of_birth)->toDateTimeImmutable();
+            } catch (\Exception $e) {
+                Log::warning('Invalid date format', ['date' => $request->date_of_birth]);
+            }
+        }
 
         // 6️⃣ Handle Profile Image using FileHelper
-        if ($request->removeProfileImage) {
+        if ($request->remove_profile_image) {
             if (!empty($user->profileImage)) {
                 FileHelper::deleteFile($user->profileImage);
                 $user->profileImage = null;
             }
-        } elseif ($request->hasFile('profileImage')) {
+        } elseif ($request->hasFile('profile_image')) {
             if (!empty($user->profileImage)) {
                 FileHelper::deleteFile($user->profileImage);
             }
 
             try {
-                $imagePath = FileHelper::saveFile($request->file('profileImage'), 'users');
+                $imagePath = FileHelper::saveFile($request->file('profile_image'), 'users');
                 if ($imagePath) {
                     $this->resizeImage($imagePath, 1000, 1000);
                     $user->profileImage = $imagePath;
@@ -518,6 +606,8 @@ class UserService implements IUserService
         // 9️⃣ Save changes
         $this->repo->update($user);
         $this->repo->saveChanges();
+
+        Log::info('Profile updated successfully', ['user_id' => $userId]);
 
         return ['success' => true, 'message' => 'Profile updated successfully'];
     }
@@ -595,6 +685,11 @@ class UserService implements IUserService
             $hasRelatedRecords = $this->repo->hasRelatedRecords($id);
             $hasVerifiedEmail = $this->repo->hasVerifiedEmail($id);
 
+            Log::info('Checking delete conditions', [
+                'hasRelatedRecords' => $hasRelatedRecords,
+                'hasVerifiedEmail' => $hasVerifiedEmail,
+                'permanent' => $permanent
+            ]);
             // If no related records AND email not verified, allow permanent delete
             if (!$hasRelatedRecords && !$hasVerifiedEmail) {
                 $deleteType = 'permanent';

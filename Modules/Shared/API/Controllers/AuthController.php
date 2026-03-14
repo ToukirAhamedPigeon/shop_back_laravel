@@ -8,6 +8,7 @@ use Modules\Shared\Application\Requests\Auth\LoginRequest;
 use Modules\Shared\Application\Services\IAuthService;
 use Illuminate\Support\Facades\App;
 use Exception;
+use Illuminate\Support\Facades\Log;
 
 class AuthController extends Controller
 {
@@ -26,6 +27,9 @@ class AuthController extends Controller
     {
         try {
             $result = $this->authService->login($request);
+
+            // FIX: Don't try to log the entire array in string concatenation
+            Log::info('Login result received: ' . ($result ? 'yes' : 'no'));
 
             if (!$result) {
                 return response()->json(['message' => 'Invalid credentials'], 401);
@@ -80,7 +84,7 @@ class AuthController extends Controller
             return response()->json(['message' => 'Invalid refresh token'], 401);
         }
 
-        if (!$result->user['isActive']) {
+        if (!$result->user->isActive) {
             return response()->json(['message' => 'User is inactive'], 401);
         }
 

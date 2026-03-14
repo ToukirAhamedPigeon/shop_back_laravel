@@ -11,9 +11,8 @@ class EloquentRefreshToken extends Model
     protected $primaryKey = 'id';
     public $incrementing = false;
     protected $keyType = 'string';
-    public $timestamps = true;
-    const CREATED_AT = 'created_at';
-    const UPDATED_AT = 'updated_at';
+    public $timestamps = false;
+
 
     protected $fillable = [
         'id',
@@ -22,7 +21,6 @@ class EloquentRefreshToken extends Model
         'is_revoked',
         'user_id',
         'updated_by',
-        'created_at',
         'updated_at'
     ];
 
@@ -32,7 +30,6 @@ class EloquentRefreshToken extends Model
         'is_revoked' => 'boolean',
         'user_id' => 'string',
         'updated_by' => 'string',
-        'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
 
