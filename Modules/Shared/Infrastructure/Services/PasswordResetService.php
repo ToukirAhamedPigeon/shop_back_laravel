@@ -61,7 +61,7 @@ class PasswordResetService implements IPasswordResetService
         // FIX: Use add() instead of create()
         $savedReset = $this->passwordResetRepository->add($resetEntity);
 
-        $frontendAdminUrl = env('FrontendAdminUrl', 'http://localhost:5173');
+        $frontendAdminUrl = env('FRONTEND_ADMIN_URL', 'http://localhost:5173');
         $resetLink = "{$frontendAdminUrl}/reset-password/{$token}";
 
         $bodyContent = "

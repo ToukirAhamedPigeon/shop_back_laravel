@@ -67,7 +67,7 @@ class UserController extends Controller
             : response()->json($result, 400);
     }
 
-    /**
+   /**
      * Verify email with token
      *
      * GET /api/users/verify-email
@@ -82,10 +82,12 @@ class UserController extends Controller
         $result = $this->mailVerificationService->verifyToken($token);
 
         if (!$result['success']) {
-            return response()->json(['message' => $result['message']], 400);
+            // .NET returns just the message string on error
+            return response()->json($result['message'], 400);
         }
 
-        return response()->json(['message' => $result['message']]);
+        // .NET returns just the message string on success
+        return response()->json($result['message']);
     }
 
     /**
@@ -98,10 +100,12 @@ class UserController extends Controller
         $result = $this->mailVerificationService->resendVerification($id);
 
         if (!$result['success']) {
-            return response()->json(['message' => $result['message']], 400);
+            // .NET returns just the message string on error
+            return response()->json($result['message'], 400);
         }
 
-        return response()->json(['message' => $result['message']]);
+        // .NET returns just the message string on success
+        return response()->json($result['message']);
     }
 
     /**

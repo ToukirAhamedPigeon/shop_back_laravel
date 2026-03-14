@@ -42,17 +42,19 @@ class PasswordResetController extends Controller
             $this->resetService->requestPasswordReset($request->input('email'));
 
             return response()->json([
+                'success' => true,
                 'message' => 'Password reset email sent.'
             ]);
         } catch (Exception $ex) {
             Log::error('Error in requestPasswordReset: ' . $ex->getMessage());
             return response()->json([
+                'success' => false,
                 'message' => $ex->getMessage()
             ], 400);
         }
     }
 
-    /**
+   /**
      * 2️⃣ Validate Reset Token (Public)
      *
      * GET /api/auth/password-reset/validate/{token}
@@ -64,19 +66,23 @@ class PasswordResetController extends Controller
 
             if (!$isValid) {
                 return response()->json([
+                    'success' => false,
                     'isValid' => false,
-                    'reason' => 'Invalid or expired token'
+                    'message' => 'Invalid or expired token'
                 ], 400);
             }
 
             return response()->json([
-                'isValid' => true
+                'success' => true,
+                'isValid' => true,
+                'message' => 'Token is valid'
             ]);
         } catch (Exception $ex) {
             Log::error('Error in validateToken: ' . $ex->getMessage());
             return response()->json([
+                'success' => false,
                 'isValid' => false,
-                'reason' => $ex->getMessage()
+                'message' => $ex->getMessage()
             ], 400);
         }
     }
@@ -88,16 +94,17 @@ class PasswordResetController extends Controller
      */
     public function reset(ResetPasswordRequest $request): JsonResponse
     {
-        // ResetPasswordRequest already handles validation
         try {
             $this->resetService->resetPassword($request);
 
             return response()->json([
+                'success' => true,
                 'message' => 'Password successfully reset.'
             ]);
         } catch (Exception $ex) {
             Log::error('Error in resetPassword: ' . $ex->getMessage());
             return response()->json([
+                'success' => false,
                 'message' => $ex->getMessage()
             ], 400);
         }

@@ -136,7 +136,7 @@ class MailService implements IMailService
         $this->mailVerificationRepository->saveChanges();
 
         // Build verification link
-        $baseUrl = env('APP_URL', 'http://localhost:5000');
+        $baseUrl = env('APP_URL', 'http://localhost:5173');
         $verifyLink = "{$baseUrl}/verify-email?token={$verificationToken}";
 
         // Email body

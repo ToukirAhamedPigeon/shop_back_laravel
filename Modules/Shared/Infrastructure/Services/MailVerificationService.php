@@ -5,6 +5,7 @@ namespace Modules\Shared\Infrastructure\Services;
 use Modules\Shared\Application\Services\IMailVerificationService;
 use Modules\Shared\Application\Services\IMailService;
 use Modules\Shared\Application\Repositories\IMailVerificationRepository;
+use Modules\Shared\Application\Repositories\IUserRepository;
 use Modules\Shared\Domain\Entities\User;
 use Modules\Shared\Domain\Entities\MailVerification;
 use Modules\Shared\Domain\Entities\Mail;
@@ -16,16 +17,19 @@ class MailVerificationService implements IMailVerificationService
 {
     private IMailVerificationRepository $repo;
     private IMailService $mailService;
+    private IUserRepository $userRepo; // Add this
 
     // Token validity in hours
     private int $tokenExpiryHours = 24;
 
     public function __construct(
         IMailVerificationRepository $repo,
-        IMailService $mailService
+        IMailService $mailService,
+        IUserRepository $userRepo // Inject user repository
     ) {
         $this->repo = $repo;
         $this->mailService = $mailService;
+        $this->userRepo = $userRepo;
     }
 
     /**
@@ -114,13 +118,25 @@ class MailVerificationService implements IMailVerificationService
 
         // Mark token as used
         $verification->markAsUsed();
+        $this->repo->update($verification);
 
-        // Update user's EmailVerifiedAt
+        // Update user's EmailVerifiedAt - FIX: Actually save the user
         if ($verification->user) {
+            Log::info('Verifying email for user', ['user_id' => $verification->user->id]);
+
+            // Update the user's emailVerifiedAt
             $verification->user->verifyEmail();
+
+            // Save the user using the repository
+            $this->userRepo->update($verification->user);
+            $this->userRepo->saveChanges();
+
+            Log::info('Email verified successfully for user', [
+                'user_id' => $verification->user->id,
+                'email_verified_at' => $verification->user->emailVerifiedAt?->format('Y-m-d H:i:s')
+            ]);
         }
 
-        $this->repo->update($verification);
         $this->repo->saveChanges();
 
         return [
@@ -156,10 +172,14 @@ class MailVerificationService implements IMailVerificationService
         $user = $existing?->user;
 
         if (!$user) {
-            return [
-                'success' => false,
-                'message' => 'User not found.'
-            ];
+            // Try to get user directly from user repository
+            $user = $this->userRepo->getById($userId);
+            if (!$user) {
+                return [
+                    'success' => false,
+                    'message' => 'User not found.'
+                ];
+            }
         }
 
         if ($user->emailVerifiedAt !== null) {
