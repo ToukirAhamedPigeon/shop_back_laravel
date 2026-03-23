@@ -17,6 +17,11 @@ use DateTimeImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Modules\Shared\Application\Requests\Role\RoleFilterRequest;
+use Modules\Shared\Application\Requests\Permission\PermissionFilterRequest;
+use Modules\Shared\Application\Resources\Role\RoleResource;
+use Modules\Shared\Application\Resources\Permission\PermissionResource;
+use Carbon\Carbon;
 
 class EloquentRolePermissionRepository implements IRolePermissionRepository
 {
@@ -60,8 +65,11 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
         $model->guard_name = $role->guardName;
         $model->is_active = $role->isActive;
         $model->is_deleted = $role->isDeleted;
+        $model->deleted_at = $role->deletedAt?->format('Y-m-d H:i:s');
         $model->created_at = $role->createdAt->format('Y-m-d H:i:s');
         $model->updated_at = $role->updatedAt->format('Y-m-d H:i:s');
+        $model->created_by = $role->createdBy;
+        $model->updated_by = $role->updatedBy;
         $model->save();
 
         return $this->mapRoleToEntity($model);
@@ -74,20 +82,148 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
         $model->guard_name = $role->guardName;
         $model->is_active = $role->isActive;
         $model->is_deleted = $role->isDeleted;
+        $model->deleted_at = $role->deletedAt?->format('Y-m-d H:i:s');
         $model->updated_at = $role->updatedAt->format('Y-m-d H:i:s');
+        $model->updated_by = $role->updatedBy;
         $model->save();
 
         return $this->mapRoleToEntity($model);
     }
 
-    public function deleteRole(string $id): void
+    public function deleteRole(string $id, bool $permanent = false, ?string $deletedBy = null): void
     {
-        EloquentRole::where('id', $id)->update(['is_deleted' => true]);
+        $model = EloquentRole::find($id);
+        if (!$model) return;
+
+        if ($permanent) {
+            // Delete related records
+            EloquentRolePermission::where('role_id', $id)->delete();
+            DB::table('model_roles')->where('role_id', $id)->delete();
+            $model->forceDelete();
+        } else {
+            $model->is_deleted = true;
+            $model->deleted_at = now();
+            $model->updated_at = now();
+            $model->updated_by = $deletedBy;
+            $model->save();
+        }
     }
 
     public function restoreRole(string $id): void
     {
-        EloquentRole::where('id', $id)->update(['is_deleted' => false]);
+        $model = EloquentRole::where('id', $id)->first();
+        if ($model) {
+            $model->is_deleted = false;
+            $model->deleted_at = null;
+            $model->save();
+        }
+    }
+
+    public function roleHasRelatedRecords(string $roleId): bool
+    {
+        $hasRolePermissions = EloquentRolePermission::where('role_id', $roleId)->exists();
+        $hasModelRoles = DB::table('model_roles')->where('role_id', $roleId)->exists();
+        return $hasRolePermissions || $hasModelRoles;
+    }
+
+    public function getFilteredRoles(RoleFilterRequest $request): array
+    {
+        // Get the raw values from the request
+        $isDeletedStr = $request->input('isDeletedStr', 'false');
+        $isActiveStr = $request->input('isActiveStr', 'all');
+        $q = $request->input('q', '');
+        $page = (int) $request->input('page', 1);
+        $limit = (int) $request->input('limit', 10);
+        $sortBy = $request->input('sortBy', 'createdAt');
+        $sortOrder = $request->input('sortOrder', 'desc');
+
+        // Log for debugging
+        Log::info('getFilteredRoles - isDeletedStr: ' . $isDeletedStr);
+        Log::info('getFilteredRoles - isActiveStr: ' . $isActiveStr);
+        Log::info('getFilteredRoles - page: ' . $page . ', limit: ' . $limit);
+
+        $query = EloquentRole::query();
+
+        // Handle deleted filter based on the raw string value
+        if ($isDeletedStr === 'true') {
+            $query->where('is_deleted', true);
+            Log::info('Filtering: show deleted only');
+        } elseif ($isDeletedStr === 'false') {
+            $query->where('is_deleted', false);
+            Log::info('Filtering: show non-deleted only');
+        } else {
+            Log::info('Filtering: show all (isDeletedStr: ' . $isDeletedStr . ')');
+        }
+
+        // Handle active filter based on the raw string value
+        if ($isActiveStr === 'true') {
+            $query->where('is_active', true);
+            Log::info('Filtering: active only');
+        } elseif ($isActiveStr === 'false') {
+            $query->where('is_active', false);
+            Log::info('Filtering: inactive only');
+        } elseif ($isActiveStr === 'all') {
+            Log::info('Filtering: all active status');
+        }
+
+        // Handle search
+        if (!empty($q)) {
+            $query->where(function($qry) use ($q) {
+                $qry->where('name', 'like', "%{$q}%")
+                    ->orWhere('guard_name', 'like', "%{$q}%");
+            });
+            Log::info('Searching for: ' . $q);
+        }
+
+        // Get total count (count of filtered records)
+        $totalCount = $query->count();
+
+        // Get grand total count (count of ALL records including deleted)
+        $grandTotalCount = EloquentRole::withTrashed()->count();
+
+        // Handle sorting - map to actual column names
+        $sortColumn = match ($sortBy) {
+            'name' => 'name',
+            'guardname' => 'guard_name',
+            'isactive' => 'is_active',
+            'createdat' => 'created_at',
+            'updatedat' => 'updated_at',
+            default => 'created_at',
+        };
+
+        Log::info('Sorting by: ' . $sortColumn . ' ' . $sortOrder);
+
+        $query->orderBy($sortColumn, $sortOrder);
+
+        // Pagination
+        $roles = $query->skip(($page - 1) * $limit)
+            ->take($limit)
+            ->get();
+
+        Log::info('Query returned: ' . count($roles) . ' roles');
+
+        // Build DTOs with permissions
+        $result = [];
+        $permissionsMap = [];
+
+        foreach ($roles as $role) {
+            $permissions = $this->getPermissionsByRoleId($role->id);
+            $permissionsMap[$role->id] = $permissions;
+            $result[] = $this->mapRoleToEntity($role);
+        }
+
+        return [
+            'roles' => RoleResource::collection($result, $permissionsMap),
+            'totalCount' => $totalCount,
+            'grandTotalCount' => $grandTotalCount,
+            'pageIndex' => $page - 1,
+            'pageSize' => $limit,
+        ];
+    }
+
+    public function getAllRolesPaginated(RoleFilterRequest $request): array
+    {
+        return $this->getFilteredRoles($request);
     }
 
     // ==================== PERMISSION METHODS ====================
@@ -130,8 +266,11 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
         $model->guard_name = $permission->guardName;
         $model->is_active = $permission->isActive;
         $model->is_deleted = $permission->isDeleted;
+        $model->deleted_at = $permission->deletedAt?->format('Y-m-d H:i:s');
         $model->created_at = $permission->createdAt->format('Y-m-d H:i:s');
         $model->updated_at = $permission->updatedAt->format('Y-m-d H:i:s');
+        $model->created_by = $permission->createdBy;
+        $model->updated_by = $permission->updatedBy;
         $model->save();
 
         return $this->mapPermissionToEntity($model);
@@ -144,20 +283,143 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
         $model->guard_name = $permission->guardName;
         $model->is_active = $permission->isActive;
         $model->is_deleted = $permission->isDeleted;
+        $model->deleted_at = $permission->deletedAt?->format('Y-m-d H:i:s');
         $model->updated_at = $permission->updatedAt->format('Y-m-d H:i:s');
+        $model->updated_by = $permission->updatedBy;
         $model->save();
 
         return $this->mapPermissionToEntity($model);
     }
 
-    public function deletePermission(string $id): void
+    public function deletePermission(string $id, bool $permanent = false, ?string $deletedBy = null): void
     {
-        EloquentPermission::where('id', $id)->update(['is_deleted' => true]);
+        $model = EloquentPermission::find($id);
+        if (!$model) return;
+
+        if ($permanent) {
+            // Delete related records
+            EloquentRolePermission::where('permission_id', $id)->delete();
+            DB::table('model_permissions')->where('permission_id', $id)->delete();
+            $model->forceDelete();
+        } else {
+            $model->is_deleted = true;
+            $model->deleted_at = now();
+            $model->updated_at = now();
+            $model->updated_by = $deletedBy;
+            $model->save();
+        }
     }
 
     public function restorePermission(string $id): void
     {
-        EloquentPermission::where('id', $id)->update(['is_deleted' => false]);
+        $model = EloquentPermission::where('id', $id)->first();
+        if ($model) {
+            $model->is_deleted = false;
+            $model->deleted_at = null;
+            $model->save();
+        }
+    }
+
+    public function permissionHasRelatedRecords(string $permissionId): bool
+    {
+        $hasRolePermissions = EloquentRolePermission::where('permission_id', $permissionId)->exists();
+        $hasModelPermissions = DB::table('model_permissions')->where('permission_id', $permissionId)->exists();
+        return $hasRolePermissions || $hasModelPermissions;
+    }
+
+    public function getFilteredPermissions(PermissionFilterRequest $request): array
+    {
+        // Get the raw values from the request
+        $isDeletedStr = $request->input('isDeletedStr', 'false');
+        $isActiveStr = $request->input('isActiveStr', 'all');
+        $q = $request->input('q', '');
+        $page = (int) $request->input('page', 1);
+        $limit = (int) $request->input('limit', 10);
+        $sortBy = $request->input('sortBy', 'createdAt');
+        $sortOrder = $request->input('sortOrder', 'desc');
+
+        // Log for debugging
+        Log::info('getFilteredPermissions - isDeletedStr: ' . $isDeletedStr);
+        Log::info('getFilteredPermissions - isActiveStr: ' . $isActiveStr);
+        Log::info('getFilteredPermissions - page: ' . $page . ', limit: ' . $limit);
+
+        $query = EloquentPermission::query();
+
+        // Handle deleted filter based on the raw string value
+        if ($isDeletedStr === 'true') {
+            $query->where('is_deleted', true);
+            Log::info('Filtering: show deleted only');
+        } elseif ($isDeletedStr === 'false') {
+            $query->where('is_deleted', false);
+            Log::info('Filtering: show non-deleted only');
+        } else {
+            Log::info('Filtering: show all (isDeletedStr: ' . $isDeletedStr . ')');
+        }
+
+        // Handle active filter based on the raw string value
+        if ($isActiveStr === 'true') {
+            $query->where('is_active', true);
+            Log::info('Filtering: active only');
+        } elseif ($isActiveStr === 'false') {
+            $query->where('is_active', false);
+            Log::info('Filtering: inactive only');
+        } elseif ($isActiveStr === 'all') {
+            Log::info('Filtering: all active status');
+        }
+
+        // Handle search
+        if (!empty($q)) {
+            $query->where(function($qry) use ($q) {
+                $qry->where('name', 'like', "%{$q}%")
+                    ->orWhere('guard_name', 'like', "%{$q}%");
+            });
+            Log::info('Searching for: ' . $q);
+        }
+
+        // Get total count (count of filtered records)
+        $totalCount = $query->count();
+
+        // Get grand total count (count of ALL records including deleted)
+        $grandTotalCount = EloquentPermission::withTrashed()->count();
+
+        // Handle sorting - map to actual column names
+        $sortColumn = match ($sortBy) {
+            'name' => 'name',
+            'guardname' => 'guard_name',
+            'isactive' => 'is_active',
+            'createdat' => 'created_at',
+            'updatedat' => 'updated_at',
+            default => 'created_at',
+        };
+
+        Log::info('Sorting by: ' . $sortColumn . ' ' . $sortOrder);
+
+        $query->orderBy($sortColumn, $sortOrder);
+
+        // Pagination
+        $permissions = $query->skip(($page - 1) * $limit)
+            ->take($limit)
+            ->get();
+
+        Log::info('Query returned: ' . count($permissions) . ' permissions');
+
+        // Build DTOs with roles
+        $result = [];
+        $rolesMap = [];
+
+        foreach ($permissions as $permission) {
+            $roles = $this->getRolesByPermissionId($permission->id);
+            $rolesMap[$permission->id] = $roles;
+            $result[] = $this->mapPermissionToEntity($permission);
+        }
+
+        return [
+            'permissions' => PermissionResource::collection($result, $rolesMap),
+            'totalCount' => $totalCount,
+            'grandTotalCount' => $grandTotalCount,
+            'pageIndex' => $page - 1,
+            'pageSize' => $limit,
+        ];
     }
 
     // ==================== ROLE-PERMISSION METHODS ====================
@@ -216,6 +478,52 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
     public function deleteRolePermissionsByRole(string $roleId): void
     {
         EloquentRolePermission::where('role_id', $roleId)->delete();
+    }
+
+    public function assignPermissionsToRole(string $roleId, array $permissionNames): void
+    {
+        // Remove existing permissions
+        EloquentRolePermission::where('role_id', $roleId)->delete();
+
+        if (!empty($permissionNames)) {
+            $permissions = EloquentPermission::whereIn('name', $permissionNames)
+                ->where('is_deleted', false)
+                ->where('is_active', true)
+                ->get();
+
+            foreach ($permissions as $permission) {
+                EloquentRolePermission::create([
+                    'id' => (string) Str::uuid(),
+                    'role_id' => $roleId,
+                    'permission_id' => $permission->id,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+        }
+    }
+
+    public function assignRolesToPermission(string $permissionId, array $roleNames): void
+    {
+        // Remove existing associations
+        EloquentRolePermission::where('permission_id', $permissionId)->delete();
+
+        if (!empty($roleNames)) {
+            $roles = EloquentRole::whereIn('name', $roleNames)
+                ->where('is_deleted', false)
+                ->where('is_active', true)
+                ->get();
+
+            foreach ($roles as $role) {
+                EloquentRolePermission::create([
+                    'id' => (string) Str::uuid(),
+                    'role_id' => $role->id,
+                    'permission_id' => $permissionId,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+        }
     }
 
     // ==================== MODEL-PERMISSION METHODS ====================
@@ -360,8 +668,6 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
     public function getAllPermissionsByUserId(string $userId): array
     {
         try {
-            $permissions = [];
-
             // Get permissions from roles
             $rolePermissions = DB::table('model_roles')
                 ->join('role_permissions', 'model_roles.role_id', '=', 'role_permissions.role_id')
@@ -382,13 +688,45 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
                 ->toArray();
 
             return array_unique(array_merge($rolePermissions, $directPermissions));
-
         } catch (\Exception $e) {
             Log::error('Error in getAllPermissionsByUserId: ' . $e->getMessage());
             return [];
         }
     }
-    // Add to EloquentRolePermissionRepository
+
+    public function getPermissionsByRoleNames(array $roleNames): array
+    {
+        if (empty($roleNames)) {
+            return [];
+        }
+
+        return EloquentRole::whereIn('name', $roleNames)
+            ->with('rolePermissions.permission')
+            ->get()
+            ->flatMap(function ($role) {
+                return $role->rolePermissions->pluck('permission.name');
+            })
+            ->unique()
+            ->toArray();
+    }
+
+    public function getRolesByPermissionNames(array $permissionNames): array
+    {
+        if (empty($permissionNames)) {
+            return [];
+        }
+
+        return EloquentPermission::whereIn('name', $permissionNames)
+            ->with('rolePermissions.role')
+            ->get()
+            ->flatMap(function ($permission) {
+                return $permission->rolePermissions->pluck('role.name');
+            })
+            ->unique()
+            ->toArray();
+    }
+
+    // ==================== GET ALL METHODS ====================
 
     public function getAllRoles(): array
     {
@@ -408,7 +746,6 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
             ->toArray();
     }
 
-    // Async versions
     public function getAllRolesAsync(): array
     {
         return $this->getAllRoles();
@@ -419,11 +756,8 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
         return $this->getAllPermissions();
     }
 
-     // ==================== NEW METHODS FOR USER SERVICE ====================
+    // ==================== USER ROLE/PERMISSION ASSIGNMENT METHODS ====================
 
-    /**
-     * Assign roles to a user
-     */
     public function assignRolesToUser(string $userId, array $roles): void
     {
         foreach ($roles as $roleName) {
@@ -448,9 +782,6 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
         }
     }
 
-    /**
-     * Assign permissions directly to a user
-     */
     public function assignPermissionsToUser(string $userId, array $permissions): void
     {
         foreach ($permissions as $permissionName) {
@@ -475,35 +806,18 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
         }
     }
 
-    /**
-     * Set roles for a user (replaces existing ones)
-     */
     public function setRolesForUser(string $userId, array $roles): void
     {
-        // Remove all existing roles
         $this->removeAllRolesFromUser($userId);
-
-        // Assign new roles
         $this->assignRolesToUser($userId, $roles);
     }
 
-    /**
-     * Set permissions for a user (replaces existing direct permissions)
-     */
     public function setPermissionsForUser(string $userId, array $permissions): void
     {
-        // Remove all existing direct permissions
         $this->removeAllPermissionsFromUser($userId);
-
-        // Assign new permissions
         $this->assignPermissionsToUser($userId, $permissions);
     }
 
-    /**
-     * Validate that all role names exist
-     *
-     * @return array Array of valid role names
-     */
     public function validateRolesExist(array $roles): array
     {
         if (empty($roles)) {
@@ -517,28 +831,6 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
             ->toArray();
     }
 
-    /**
-     * Get all permission names for given role names
-     */
-    public function getPermissionsByRoleNames(array $roles): array
-    {
-        if (empty($roles)) {
-            return [];
-        }
-
-        return EloquentRole::whereIn('name', $roles)
-            ->with(['rolePermissions.permission'])
-            ->get()
-            ->flatMap(function ($role) {
-                return $role->rolePermissions->pluck('permission.name');
-            })
-            ->unique()
-            ->toArray();
-    }
-
-    /**
-     * Remove all roles from a user
-     */
     public function removeAllRolesFromUser(string $userId): void
     {
         EloquentModelRole::where('model_id', $userId)
@@ -546,9 +838,6 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
             ->delete();
     }
 
-    /**
-     * Remove all direct permissions from a user
-     */
     public function removeAllPermissionsFromUser(string $userId): void
     {
         EloquentModelPermission::where('model_id', $userId)
@@ -556,26 +845,45 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
             ->delete();
     }
 
-    /**
-     * Get role IDs by role names
-     */
-    private function getRoleIdsByNames(array $roles): array
+    // ==================== ROLE/PERMISSION EXISTS METHODS ====================
+
+    public function roleExists(string $name, ?string $ignoreId = null): bool
     {
-        return EloquentRole::whereIn('name', $roles)
-            ->pluck('id', 'name')
-            ->toArray();
+        $query = EloquentRole::where('name', $name)->where('is_deleted', false);
+        if ($ignoreId) {
+            $query->where('id', '!=', $ignoreId);
+        }
+        return $query->exists();
     }
 
-    /**
-     * Get permission IDs by permission names
-     */
-    private function getPermissionIdsByNames(array $permissions): array
+    public function permissionExists(string $name, ?string $ignoreId = null): bool
     {
-        return EloquentPermission::whereIn('name', $permissions)
-            ->pluck('id', 'name')
-            ->toArray();
+        $query = EloquentPermission::where('name', $name)->where('is_deleted', false);
+        if ($ignoreId) {
+            $query->where('id', '!=', $ignoreId);
+        }
+        return $query->exists();
     }
 
+    public function getRoleById(string $id): ?RoleEntity
+    {
+        $model = EloquentRole::find($id);
+        return $model ? $this->mapRoleToEntity($model) : null;
+    }
+
+    public function getPermissionById(string $id): ?PermissionEntity
+    {
+        $model = EloquentPermission::find($id);
+        return $model ? $this->mapPermissionToEntity($model) : null;
+    }
+
+    // ==================== SAVE CHANGES METHODS ====================
+
+    public function saveChanges(): void
+    {
+        // This method is not needed in Eloquent as changes are auto-saved
+        // But kept for interface compatibility
+    }
 
     // ==================== MAPPER METHODS ====================
 
@@ -585,10 +893,13 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
             id: $model->id,
             name: $model->name,
             guardName: $model->guard_name,
-            isActive: $model->is_active,
-            isDeleted: $model->is_deleted,
+            isActive: (bool) $model->is_active,
+            isDeleted: (bool) $model->is_deleted,
+            deletedAt: $model->deleted_at ? new DateTimeImmutable($model->deleted_at) : null,
             createdAt: new DateTimeImmutable($model->created_at),
-            updatedAt: new DateTimeImmutable($model->updated_at)
+            updatedAt: new DateTimeImmutable($model->updated_at),
+            createdBy: $model->created_by,
+            updatedBy: $model->updated_by
         );
     }
 
@@ -598,10 +909,13 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
             id: $model->id,
             name: $model->name,
             guardName: $model->guard_name,
-            isActive: $model->is_active,
-            isDeleted: $model->is_deleted,
+            isActive: (bool) $model->is_active,
+            isDeleted: (bool) $model->is_deleted,
+            deletedAt: $model->deleted_at ? new DateTimeImmutable($model->deleted_at) : null,
             createdAt: new DateTimeImmutable($model->created_at),
-            updatedAt: new DateTimeImmutable($model->updated_at)
+            updatedAt: new DateTimeImmutable($model->updated_at),
+            createdBy: $model->created_by,
+            updatedBy: $model->updated_by
         );
     }
 
@@ -651,6 +965,4 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
                 : null
         );
     }
-
-
 }

@@ -40,6 +40,8 @@ use Modules\Shared\Application\Services\IMailVerificationService;
 use Modules\Shared\Application\Services\IUserService;
 use Modules\Shared\Infrastructure\Services\Authorization\PermissionHandlerService;
 use Modules\Shared\Application\Services\IOptionsService;
+use Modules\Shared\Application\Services\IPermissionService;
+use Modules\Shared\Application\Services\IRoleService;
 use Modules\Shared\Infrastructure\Repositories\EloquentMailVerificationRepository;
 use Modules\Shared\Infrastructure\Services\ChangePasswordService;
 use Modules\Shared\Infrastructure\Services\MailVerificationService;
@@ -47,6 +49,8 @@ use Modules\Shared\Infrastructure\Services\OptionsService;
 use Modules\Shared\Infrastructure\Services\UserService;
 use Modules\Shared\Infrastructure\Services\Authorization\PermissionFilterService;
 use Modules\Shared\Application\Services\IUniqueCheckService;
+use Modules\Shared\Infrastructure\Services\PermissionService;
+use Modules\Shared\Infrastructure\Services\RoleService;
 use Modules\Shared\Infrastructure\Services\UniqueCheckService;
 
 class SharedServiceProvider extends ServiceProvider
@@ -98,7 +102,9 @@ class SharedServiceProvider extends ServiceProvider
         $this->app->bind(IUserTableCombinationRepository::class, EloquentUserTableCombinationRepository::class);
         $this->app->bind(IUserTableCombinationService::class, UserTableCombinationService::class);
         $this->app->bind(IPermissionFilter::class, PermissionFilterService::class);
-         $this->app->bind(IUniqueCheckService::class, UniqueCheckService::class);
+        $this->app->bind(IUniqueCheckService::class, UniqueCheckService::class);
+        $this->app->bind(IPermissionService::class, PermissionService::class);
+        $this->app->bind(IRoleService::class, RoleService::class);
     }
 
     protected function registerConfig(): void

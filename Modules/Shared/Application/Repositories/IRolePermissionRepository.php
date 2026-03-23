@@ -7,6 +7,8 @@ use Modules\Shared\Domain\Entities\Permission;
 use Modules\Shared\Domain\Entities\RolePermission;
 use Modules\Shared\Domain\Entities\ModelPermission;
 use Modules\Shared\Domain\Entities\ModelRole;
+use Modules\Shared\Application\Requests\Role\RoleFilterRequest;
+use Modules\Shared\Application\Requests\Permission\PermissionFilterRequest;
 
 interface IRolePermissionRepository
 {
@@ -14,18 +16,10 @@ interface IRolePermissionRepository
     public function findRoleById(string $id): ?Role;
     public function findRoleByName(string $name): ?Role;
     public function findAllRoles(array $filters = []): array;
-    public function createRole(Role $role): Role;
-    public function updateRole(Role $role): Role;
-    public function deleteRole(string $id): void;
-    public function restoreRole(string $id): void;
 
     public function findPermissionById(string $id): ?Permission;
     public function findPermissionByName(string $name): ?Permission;
     public function findAllPermissions(array $filters = []): array;
-    public function createPermission(Permission $permission): Permission;
-    public function updatePermission(Permission $permission): Permission;
-    public function deletePermission(string $id): void;
-    public function restorePermission(string $id): void;
 
     public function findRolePermissionById(string $id): ?RolePermission;
     public function findRolePermissionByRoleAndPermission(string $roleId, string $permissionId): ?RolePermission;
@@ -88,10 +82,6 @@ interface IRolePermissionRepository
      */
     public function validateRolesExist(array $roles): array;
 
-    /**
-     * Get all permission names for given role names
-     */
-    public function getPermissionsByRoleNames(array $roles): array;
 
     /**
      * Remove all roles from a user
@@ -102,4 +92,112 @@ interface IRolePermissionRepository
      * Remove all direct permissions from a user
      */
     public function removeAllPermissionsFromUser(string $userId): void;
+     // ==================== ROLE CRUD METHODS ====================
+
+    /**
+     * Get filtered roles with pagination
+     */
+    public function getFilteredRoles(RoleFilterRequest $request): array;
+
+    /**
+     * Get role by ID with permissions
+     */
+    public function getRoleById(string $id): ?Role;
+
+    /**
+     * Check if role exists by name
+     */
+    public function roleExists(string $name, ?string $ignoreId = null): bool;
+
+    /**
+     * Create a new role
+     */
+    public function createRole(Role $role): Role;
+
+    /**
+     * Update an existing role
+     */
+    public function updateRole(Role $role): Role;
+
+    /**
+     * Delete a role (soft or hard)
+     */
+    public function deleteRole(string $id, bool $permanent = false, ?string $deletedBy = null): void;
+
+    /**
+     * Restore a soft-deleted role
+     */
+    public function restoreRole(string $id): void;
+
+    /**
+     * Check if role has related records
+     */
+    public function roleHasRelatedRecords(string $roleId): bool;
+
+    /**
+     * Assign permissions to a role
+     */
+    public function assignPermissionsToRole(string $roleId, array $permissionNames): void;
+
+    /**
+     * Get permission names by role names
+     */
+    public function getPermissionsByRoleNames(array $roleNames): array;
+
+    /**
+     * Get all roles with pagination
+     */
+    public function getAllRolesPaginated(RoleFilterRequest $request): array;
+
+    // ==================== PERMISSION CRUD METHODS ====================
+
+    /**
+     * Get filtered permissions with pagination
+     */
+    public function getFilteredPermissions(PermissionFilterRequest $request): array;
+
+    /**
+     * Get permission by ID with roles
+     */
+    public function getPermissionById(string $id): ?Permission;
+
+    /**
+     * Check if permission exists by name
+     */
+    public function permissionExists(string $name, ?string $ignoreId = null): bool;
+
+    /**
+     * Create a new permission
+     */
+    public function createPermission(Permission $permission): Permission;
+
+    /**
+     * Update an existing permission
+     */
+    public function updatePermission(Permission $permission): Permission;
+
+    /**
+     * Delete a permission (soft or hard)
+     */
+    public function deletePermission(string $id, bool $permanent = false, ?string $deletedBy = null): void;
+
+    /**
+     * Restore a soft-deleted permission
+     */
+    public function restorePermission(string $id): void;
+
+    /**
+     * Check if permission has related records
+     */
+    public function permissionHasRelatedRecords(string $permissionId): bool;
+
+    /**
+     * Assign roles to a permission
+     */
+    public function assignRolesToPermission(string $permissionId, array $roleNames): void;
+
+    /**
+     * Get role names by permission names
+     */
+    public function getRolesByPermissionNames(array $permissionNames): array;
 }

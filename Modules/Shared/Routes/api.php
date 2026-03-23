@@ -3,10 +3,12 @@
 use Illuminate\Support\Facades\Route;
 use Modules\Shared\API\Controllers\AuthController;
 use Modules\Shared\API\Controllers\CommonController;
+use Modules\Shared\API\Controllers\PermissionController;
 use Modules\Shared\API\Controllers\TranslationsController;
 use Modules\Shared\API\Controllers\CsrfController;
 use Modules\Shared\API\Controllers\OptionsController;
 use Modules\Shared\API\Controllers\PasswordResetController;
+use Modules\Shared\API\Controllers\RoleController;
 use Modules\Shared\API\Controllers\UserController;
 use Modules\Shared\API\Controllers\UserLogController;
 use Modules\Shared\API\Controllers\UserTableCombinationController;
@@ -103,7 +105,37 @@ Route::middleware('auth:api')->group(function () {
     |-----------------------------
     */
     // Route::middleware('permission:any,read-admin-dashboard')->group(function () {
+    /*
+    |-----------------------------
+    | Roles (Admin)
+    |-----------------------------
+    */
+    Route::prefix('roles')->group(function () {
+        Route::post('/', [RoleController::class, 'getRoles'])->name('roles.list')->middleware('permission:any,read-admin-dashboard');
+        Route::get('/{id}', [RoleController::class, 'getRole'])->name('roles.get')->middleware('permission:any,read-admin-dashboard');
+        Route::get('/{id}/edit', [RoleController::class, 'getRoleForEdit'])->name('roles.edit')->middleware('permission:any,read-admin-dashboard');
+        Route::post('/create', [RoleController::class, 'create'])->name('roles.create')->middleware('permission:any,read-admin-dashboard');
+        Route::put('/{id}', [RoleController::class, 'update'])->name('roles.update')->middleware('permission:any,read-admin-dashboard');
+        Route::delete('/{id}', [RoleController::class, 'deleteRole'])->name('roles.delete')->middleware('permission:any,read-admin-dashboard');
+        Route::post('/{id}/restore', [RoleController::class, 'restoreRole'])->name('roles.restore')->middleware('permission:any,read-admin-dashboard');
+        Route::get('/{id}/delete-info', [RoleController::class, 'getDeleteInfo'])->name('roles.delete-info')->middleware('permission:any,read-admin-dashboard');
+    });
 
+    /*
+    |-----------------------------
+    | Permissions (Admin)
+    |-----------------------------
+    */
+    Route::prefix('permissions')->group(function () {
+        Route::post('/', [PermissionController::class, 'getPermissions'])->name('permissions.list')->middleware('permission:any,read-admin-dashboard');
+        Route::get('/{id}', [PermissionController::class, 'getPermission'])->name('permissions.get')->middleware('permission:any,read-admin-dashboard');
+        Route::get('/{id}/edit', [PermissionController::class, 'getPermissionForEdit'])->name('permissions.edit')->middleware('permission:any,read-admin-dashboard');
+        Route::post('/create', [PermissionController::class, 'create'])->name('permissions.create')->middleware('permission:any,read-admin-dashboard');
+        Route::put('/{id}', [PermissionController::class, 'update'])->name('permissions.update')->middleware('permission:any,read-admin-dashboard');
+        Route::delete('/{id}', [PermissionController::class, 'deletePermission'])->name('permissions.delete')->middleware('permission:any,read-admin-dashboard');
+        Route::post('/{id}/restore', [PermissionController::class, 'restorePermission'])->name('permissions.restore')->middleware('permission:any,read-admin-dashboard');
+        Route::get('/{id}/delete-info', [PermissionController::class, 'getDeleteInfo'])->name('permissions.delete-info')->middleware('permission:any,read-admin-dashboard');
+    });
         /*
         |-----------------------------
         | User Logs (Admin)

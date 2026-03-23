@@ -11,8 +11,11 @@ final class Role
     public string $guardName;
     public bool $isActive;
     public bool $isDeleted;
+    public ?DateTimeImmutable $deletedAt;
     public DateTimeImmutable $createdAt;
     public DateTimeImmutable $updatedAt;
+    public ?string $createdBy;
+    public ?string $updatedBy;
 
     /** @var RolePermission[] */
     public array $rolePermissions = [];
@@ -26,8 +29,11 @@ final class Role
         string $guardName = 'admin',
         bool $isActive = true,
         bool $isDeleted = false,
+        ?DateTimeImmutable $deletedAt = null,
         ?DateTimeImmutable $createdAt = null,
         ?DateTimeImmutable $updatedAt = null,
+        ?string $createdBy = null,
+        ?string $updatedBy = null,
         array $rolePermissions = [],
         array $modelRoles = []
     ) {
@@ -36,8 +42,11 @@ final class Role
         $this->guardName = $guardName;
         $this->isActive = $isActive;
         $this->isDeleted = $isDeleted;
+        $this->deletedAt = $deletedAt;
         $this->createdAt = $createdAt ?? new DateTimeImmutable();
         $this->updatedAt = $updatedAt ?? new DateTimeImmutable();
+        $this->createdBy = $createdBy;
+        $this->updatedBy = $updatedBy;
         $this->rolePermissions = $rolePermissions;
         $this->modelRoles = $modelRoles;
     }
@@ -55,5 +64,12 @@ final class Role
     public function markDeleted(): void
     {
         $this->isDeleted = true;
+        $this->deletedAt = new DateTimeImmutable();
+    }
+
+    public function restore(): void
+    {
+        $this->isDeleted = false;
+        $this->deletedAt = null;
     }
 }
