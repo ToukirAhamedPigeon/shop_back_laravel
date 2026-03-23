@@ -21,6 +21,8 @@ class RoleFilterRequest extends FormRequest
             'sortOrder' => ['nullable', 'in:asc,desc'],
             'isActiveStr' => ['nullable', 'string', 'in:all,true,false'],
             'isDeletedStr' => ['nullable', 'string', 'in:true,false'],
+            'permissions' => ['nullable', 'array'],
+            'permissions.*' => ['string'],
         ];
     }
 

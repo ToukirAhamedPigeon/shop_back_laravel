@@ -4,12 +4,9 @@ namespace Modules\Shared\Infrastructure\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
 class EloquentPermission extends Model
 {
-    use SoftDeletes;
-
     protected $table = 'permissions';
     protected $primaryKey = 'id';
     public $incrementing = false;

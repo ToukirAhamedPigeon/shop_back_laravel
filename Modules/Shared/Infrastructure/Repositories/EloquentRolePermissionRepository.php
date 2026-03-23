@@ -101,6 +101,7 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
             DB::table('model_roles')->where('role_id', $id)->delete();
             $model->forceDelete();
         } else {
+            // Soft delete - just set is_deleted flag
             $model->is_deleted = true;
             $model->deleted_at = now();
             $model->updated_at = now();
@@ -131,6 +132,7 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
         // Get the raw values from the request
         $isDeletedStr = $request->input('isDeletedStr', 'false');
         $isActiveStr = $request->input('isActiveStr', 'all');
+        $permissions = $request->input('permissions', []);
         $q = $request->input('q', '');
         $page = (int) $request->input('page', 1);
         $limit = (int) $request->input('limit', 10);
@@ -140,15 +142,18 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
         // Log for debugging
         Log::info('getFilteredRoles - isDeletedStr: ' . $isDeletedStr);
         Log::info('getFilteredRoles - isActiveStr: ' . $isActiveStr);
+        Log::info('getFilteredRoles - permissions: ' . json_encode($permissions));
         Log::info('getFilteredRoles - page: ' . $page . ', limit: ' . $limit);
 
         $query = EloquentRole::query();
 
         // Handle deleted filter based on the raw string value
         if ($isDeletedStr === 'true') {
+            // Show ONLY deleted records (soft deleted)
             $query->where('is_deleted', true);
             Log::info('Filtering: show deleted only');
         } elseif ($isDeletedStr === 'false') {
+            // Show ONLY non-deleted records
             $query->where('is_deleted', false);
             Log::info('Filtering: show non-deleted only');
         } else {
@@ -166,6 +171,14 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
             Log::info('Filtering: all active status');
         }
 
+        // Handle permissions filter - filter roles by associated permissions
+        if (!empty($permissions)) {
+            $query->whereHas('rolePermissions.permission', function($qry) use ($permissions) {
+                $qry->whereIn('name', $permissions);
+            });
+            Log::info('Filtering by permissions: ' . json_encode($permissions));
+        }
+
         // Handle search
         if (!empty($q)) {
             $query->where(function($qry) use ($q) {
@@ -179,7 +192,7 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
         $totalCount = $query->count();
 
         // Get grand total count (count of ALL records including deleted)
-        $grandTotalCount = EloquentRole::withTrashed()->count();
+        $grandTotalCount = EloquentRole::count() + EloquentRole::onlyDeleted()->count();
 
         // Handle sorting - map to actual column names
         $sortColumn = match ($sortBy) {
@@ -207,8 +220,8 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
         $permissionsMap = [];
 
         foreach ($roles as $role) {
-            $permissions = $this->getPermissionsByRoleId($role->id);
-            $permissionsMap[$role->id] = $permissions;
+            $perms = $this->getPermissionsByRoleId($role->id);
+            $permissionsMap[$role->id] = $perms;
             $result[] = $this->mapRoleToEntity($role);
         }
 
@@ -302,6 +315,7 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
             DB::table('model_permissions')->where('permission_id', $id)->delete();
             $model->forceDelete();
         } else {
+            // Soft delete - just set is_deleted flag
             $model->is_deleted = true;
             $model->deleted_at = now();
             $model->updated_at = now();
@@ -332,6 +346,7 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
         // Get the raw values from the request
         $isDeletedStr = $request->input('isDeletedStr', 'false');
         $isActiveStr = $request->input('isActiveStr', 'all');
+        $roles = $request->input('roles', []);
         $q = $request->input('q', '');
         $page = (int) $request->input('page', 1);
         $limit = (int) $request->input('limit', 10);
@@ -341,15 +356,18 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
         // Log for debugging
         Log::info('getFilteredPermissions - isDeletedStr: ' . $isDeletedStr);
         Log::info('getFilteredPermissions - isActiveStr: ' . $isActiveStr);
+        Log::info('getFilteredPermissions - roles: ' . json_encode($roles));
         Log::info('getFilteredPermissions - page: ' . $page . ', limit: ' . $limit);
 
         $query = EloquentPermission::query();
 
         // Handle deleted filter based on the raw string value
         if ($isDeletedStr === 'true') {
+            // Show ONLY deleted records (soft deleted)
             $query->where('is_deleted', true);
             Log::info('Filtering: show deleted only');
         } elseif ($isDeletedStr === 'false') {
+            // Show ONLY non-deleted records
             $query->where('is_deleted', false);
             Log::info('Filtering: show non-deleted only');
         } else {
@@ -367,6 +385,14 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
             Log::info('Filtering: all active status');
         }
 
+        // Handle roles filter - filter permissions by associated roles
+        if (!empty($roles)) {
+            $query->whereHas('rolePermissions.role', function($qry) use ($roles) {
+                $qry->whereIn('name', $roles);
+            });
+            Log::info('Filtering by roles: ' . json_encode($roles));
+        }
+
         // Handle search
         if (!empty($q)) {
             $query->where(function($qry) use ($q) {
@@ -380,7 +406,7 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
         $totalCount = $query->count();
 
         // Get grand total count (count of ALL records including deleted)
-        $grandTotalCount = EloquentPermission::withTrashed()->count();
+        $grandTotalCount = EloquentPermission::count() + EloquentPermission::onlyDeleted()->count();
 
         // Handle sorting - map to actual column names
         $sortColumn = match ($sortBy) {
@@ -408,8 +434,8 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
         $rolesMap = [];
 
         foreach ($permissions as $permission) {
-            $roles = $this->getRolesByPermissionId($permission->id);
-            $rolesMap[$permission->id] = $roles;
+            $roleList = $this->getRolesByPermissionId($permission->id);
+            $rolesMap[$permission->id] = $roleList;
             $result[] = $this->mapPermissionToEntity($permission);
         }
 
