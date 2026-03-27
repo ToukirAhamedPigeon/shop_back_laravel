@@ -74,10 +74,10 @@ Route::middleware('auth:api')->group(function () {
     |-----------------------------
     */
     Route::prefix('auth')->group(function () {
-        Route::get('/me', [AuthController::class, 'me'])->name('auth.me');
-        Route::post('/logout', [AuthController::class, 'logout'])->name('auth.logout');
-        Route::post('/logout-all', [AuthController::class, 'logoutAll'])->name('auth.logout-all');
-        Route::post('/logout-others', [AuthController::class, 'logoutOthers'])->name('auth.logout-others');
+        Route::get('/me', [AuthController::class, 'me'])->name('auth.me')->middleware('permission:any,read-admin-auth');
+        Route::post('/logout', [AuthController::class, 'logout'])->name('auth.logout')->middleware('permission:any,logout-admin-auth');
+        Route::post('/logout-all', [AuthController::class, 'logoutAll'])->name('auth.logout-all')->middleware('permission:any,logout-all-admin-auth');
+        Route::post('/logout-others', [AuthController::class, 'logoutOthers'])->name('auth.logout-others')->middleware('permission:any,logout-others-admin-auth');
     });
 
     /*
@@ -86,7 +86,7 @@ Route::middleware('auth:api')->group(function () {
     |-----------------------------
     */
     Route::prefix('auth/password-reset')->group(function () {
-        Route::post('/change-password/request', [PasswordResetController::class, 'requestPasswordChange'])->name('password.change.request');
+        Route::post('/change-password/request', [PasswordResetController::class, 'requestPasswordChange'])->name('password.change.request')->middleware('permission:any,change-admin-password');
     });
 
     /*
@@ -95,8 +95,8 @@ Route::middleware('auth:api')->group(function () {
     |-----------------------------
     */
     Route::prefix('users')->group(function () {
-        Route::get('/profile', [UserController::class, 'getProfile'])->name('user.profile');
-        Route::put('/profile', [UserController::class, 'updateProfile'])->name('user.profile.update')->middleware('parse.multipart');
+        Route::get('/profile', [UserController::class, 'getProfile'])->name('user.profile')->middleware('permission:any,read-admin-profile');
+        Route::put('/profile', [UserController::class, 'updateProfile'])->name('user.profile.update')->middleware('parse.multipart,permission:any,update-admin-profile');
     });
 
     /*
@@ -111,14 +111,14 @@ Route::middleware('auth:api')->group(function () {
     |-----------------------------
     */
     Route::prefix('roles')->group(function () {
-        Route::post('/', [RoleController::class, 'getRoles'])->name('roles.list')->middleware('permission:any,read-admin-dashboard');
-        Route::get('/{id}', [RoleController::class, 'getRole'])->name('roles.get')->middleware('permission:any,read-admin-dashboard');
-        Route::get('/{id}/edit', [RoleController::class, 'getRoleForEdit'])->name('roles.edit')->middleware('permission:any,read-admin-dashboard');
-        Route::post('/create', [RoleController::class, 'create'])->name('roles.create')->middleware('permission:any,read-admin-dashboard');
-        Route::put('/{id}', [RoleController::class, 'update'])->name('roles.update')->middleware('permission:any,read-admin-dashboard');
-        Route::delete('/{id}', [RoleController::class, 'deleteRole'])->name('roles.delete')->middleware('permission:any,read-admin-dashboard');
-        Route::post('/{id}/restore', [RoleController::class, 'restoreRole'])->name('roles.restore')->middleware('permission:any,read-admin-dashboard');
-        Route::get('/{id}/delete-info', [RoleController::class, 'getDeleteInfo'])->name('roles.delete-info')->middleware('permission:any,read-admin-dashboard');
+        Route::post('/', [RoleController::class, 'getRoles'])->name('roles.list')->middleware('permission:any,read-admin-roles');
+        Route::get('/{id}', [RoleController::class, 'getRole'])->name('roles.get')->middleware('permission:any,read-admin-roles');
+        Route::get('/{id}/edit', [RoleController::class, 'getRoleForEdit'])->name('roles.edit')->middleware('permission:any,update-admin-roles');
+        Route::post('/create', [RoleController::class, 'create'])->name('roles.create')->middleware('permission:any,create-admin-roles');
+        Route::put('/{id}', [RoleController::class, 'update'])->name('roles.update')->middleware('permission:any,update-admin-roles');
+        Route::delete('/{id}', [RoleController::class, 'deleteRole'])->name('roles.delete')->middleware('permission:any,delete-admin-roles');
+        Route::post('/{id}/restore', [RoleController::class, 'restoreRole'])->name('roles.restore')->middleware('permission:any,restore-admin-roles');
+        Route::get('/{id}/delete-info', [RoleController::class, 'getDeleteInfo'])->name('roles.delete-info')->middleware('permission:any,restore-admin-roles');
     });
 
     /*
@@ -127,14 +127,14 @@ Route::middleware('auth:api')->group(function () {
     |-----------------------------
     */
     Route::prefix('permissions')->group(function () {
-        Route::post('/', [PermissionController::class, 'getPermissions'])->name('permissions.list')->middleware('permission:any,read-admin-dashboard');
-        Route::get('/{id}', [PermissionController::class, 'getPermission'])->name('permissions.get')->middleware('permission:any,read-admin-dashboard');
-        Route::get('/{id}/edit', [PermissionController::class, 'getPermissionForEdit'])->name('permissions.edit')->middleware('permission:any,read-admin-dashboard');
-        Route::post('/create', [PermissionController::class, 'create'])->name('permissions.create')->middleware('permission:any,read-admin-dashboard');
-        Route::put('/{id}', [PermissionController::class, 'update'])->name('permissions.update')->middleware('permission:any,read-admin-dashboard');
-        Route::delete('/{id}', [PermissionController::class, 'deletePermission'])->name('permissions.delete')->middleware('permission:any,read-admin-dashboard');
-        Route::post('/{id}/restore', [PermissionController::class, 'restorePermission'])->name('permissions.restore')->middleware('permission:any,read-admin-dashboard');
-        Route::get('/{id}/delete-info', [PermissionController::class, 'getDeleteInfo'])->name('permissions.delete-info')->middleware('permission:any,read-admin-dashboard');
+        Route::post('/', [PermissionController::class, 'getPermissions'])->name('permissions.list')->middleware('permission:any,read-admin-permissions');
+        Route::get('/{id}', [PermissionController::class, 'getPermission'])->name('permissions.get')->middleware('permission:any,read-admin-permissions');
+        Route::get('/{id}/edit', [PermissionController::class, 'getPermissionForEdit'])->name('permissions.edit')->middleware('permission:any,update-admin-permissions');
+        Route::post('/create', [PermissionController::class, 'create'])->name('permissions.create')->middleware('permission:any,create-admin-permissions');
+        Route::put('/{id}', [PermissionController::class, 'update'])->name('permissions.update')->middleware('permission:any,update-admin-permissions');
+        Route::delete('/{id}', [PermissionController::class, 'deletePermission'])->name('permissions.delete')->middleware('permission:any,delete-admin-permissions');
+        Route::post('/{id}/restore', [PermissionController::class, 'restorePermission'])->name('permissions.restore')->middleware('permission:any,restore-admin-permissions');
+        Route::get('/{id}/delete-info', [PermissionController::class, 'getDeleteInfo'])->name('permissions.delete-info')->middleware('permission:any,restore-admin-permissions');
     });
         /*
         |-----------------------------
@@ -142,11 +142,11 @@ Route::middleware('auth:api')->group(function () {
         |-----------------------------
         */
     Route::prefix('UserLog')->group(function () {
-        Route::post('/', [UserLogController::class, 'getFiltered'])->name('userlog.filtered')->middleware('permission:any,read-admin-dashboard');
-        Route::get('/{id}', [UserLogController::class, 'get'])->name('userlog.get')->middleware('permission:any,read-admin-dashboard');
-        Route::post('/collections', [UserLogController::class, 'collections'])->name('userlog.collections')->middleware('permission:any,read-admin-dashboard');
-        Route::post('/action-types', [UserLogController::class, 'actionTypes'])->name('userlog.action-types')->middleware('permission:any,read-admin-dashboard');
-        Route::post('/creators', [UserLogController::class, 'creators'])->name('userlog.creators')->middleware('permission:any,read-admin-dashboard');
+        Route::post('/', [UserLogController::class, 'getFiltered'])->name('userlog.filtered')->middleware('permission:any,read-admin-user-logs');
+        Route::get('/{id}', [UserLogController::class, 'get'])->name('userlog.get')->middleware('permission:any,read-admin-user-logs');
+        Route::post('/collections', [UserLogController::class, 'collections'])->name('userlog.collections')->middleware('permission:any,read-admin-user-logs');
+        Route::post('/action-types', [UserLogController::class, 'actionTypes'])->name('userlog.action-types')->middleware('permission:any,read-admin-user-logs');
+        Route::post('/creators', [UserLogController::class, 'creators'])->name('userlog.creators')->middleware('permission:any,read-admin-user-logs');
     });
 
         /*
@@ -155,16 +155,16 @@ Route::middleware('auth:api')->group(function () {
         |-----------------------------
         */
     Route::prefix('users')->group(function () {
-        Route::post('/', [UserController::class, 'getUsers'])->name('users.list')->middleware('permission:any,read-admin-dashboard');
-        Route::get('/{id}', [UserController::class, 'getUser'])->name('users.get')->middleware('permission:any,read-admin-dashboard');
-        Route::post('/create', [UserController::class, 'create'])->name('users.create')->middleware(['permission:any,read-admin-dashboard', 'parse.multipart']);
-        Route::post('/{id}/resend-verification', [UserController::class, 'resendVerification'])->name('users.resend-verification')->middleware('permission:any,read-admin-dashboard');
-        Route::post('/{id}/regenerate-qr', [UserController::class, 'regenerateQr'])->name('users.regenerate-qr')->middleware('permission:any,read-admin-dashboard');
-        Route::get('/{id}/edit', [UserController::class, 'getUserForEdit'])->name('users.edit')->middleware('permission:any,read-admin-dashboard');
-        Route::put('/{id}', [UserController::class, 'update'])->name('users.update')->middleware(['permission:any,read-admin-dashboard', 'parse.multipart']);
-        Route::delete('/{id}', [UserController::class, 'deleteUser'])->name('users.delete')->middleware('permission:any,read-admin-dashboard');
-        Route::post('/{id}/restore', [UserController::class, 'restoreUser'])->name('users.restore')->middleware('permission:any,read-admin-dashboard');
-        Route::get('/{id}/delete-info', [UserController::class, 'getDeleteInfo'])->name('users.delete-info')->middleware('permission:any,read-admin-dashboard');
+        Route::post('/', [UserController::class, 'getUsers'])->name('users.list')->middleware('permission:any,read-admin-users');
+        Route::get('/{id}', [UserController::class, 'getUser'])->name('users.get')->middleware('permission:any,read-admin-users');
+        Route::post('/create', [UserController::class, 'create'])->name('users.create')->middleware(['permission:any,create-admin-users', 'parse.multipart']);
+        Route::post('/{id}/resend-verification', [UserController::class, 'resendVerification'])->name('users.resend-verification')->middleware('permission:any,create-admin-users');
+        Route::post('/{id}/regenerate-qr', [UserController::class, 'regenerateQr'])->name('users.regenerate-qr')->middleware('permission:any,update-admin-users');
+        Route::get('/{id}/edit', [UserController::class, 'getUserForEdit'])->name('users.edit')->middleware('permission:any,update-admin-users');
+        Route::put('/{id}', [UserController::class, 'update'])->name('users.update')->middleware(['permission:any,update-admin-users', 'parse.multipart']);
+        Route::delete('/{id}', [UserController::class, 'deleteUser'])->name('users.delete')->middleware('permission:any,delete-admin-users');
+        Route::post('/{id}/restore', [UserController::class, 'restoreUser'])->name('users.restore')->middleware('permission:any,restore-admin-users');
+        Route::get('/{id}/delete-info', [UserController::class, 'getDeleteInfo'])->name('users.delete-info')->middleware('permission:any,restore-admin-users');
     });
 
         /*
@@ -173,7 +173,7 @@ Route::middleware('auth:api')->group(function () {
         |-----------------------------
         */
         Route::prefix('Options')->group(function () {
-            Route::post('/{type}', [OptionsController::class, 'getOptions'])->name('options.get')->middleware('permission:any,read-admin-dashboard');
+            Route::post('/{type}', [OptionsController::class, 'getOptions'])->name('options.get')->middleware('permission:any,read-admin-options');
         });
 
         /*
@@ -182,7 +182,7 @@ Route::middleware('auth:api')->group(function () {
         |-----------------------------
         */
         Route::prefix('common')->group(function () {
-            Route::post('/check-unique', [CommonController::class, 'checkUnique'])->name('common.check-unique')->middleware('permission:any,read-admin-dashboard');
+            Route::post('/check-unique', [CommonController::class, 'checkUnique'])->name('common.check-unique')->middleware('permission:any,check-admin-unique');
         });
 
         /*
@@ -191,10 +191,10 @@ Route::middleware('auth:api')->group(function () {
         |-----------------------------
         */
         Route::prefix('user-table-combination')
-            ->middleware('permission:any,read-admin-dashboard,read-admin-dashboard')
+            ->middleware('permission:any,read-admin-user-table-combination,update-admin-user-table-combination')
             ->group(function () {
-                Route::get('/', [UserTableCombinationController::class, 'get'])->name('user-table.get')->middleware('permission:any,read-admin-dashboard');
-                Route::put('/', [UserTableCombinationController::class, 'update'])->name('user-table.update')->middleware('permission:any,read-admin-dashboard');
+                Route::get('/', [UserTableCombinationController::class, 'get'])->name('user-table.get')->middleware('permission:any,read-admin-user-table-combination');
+                Route::put('/', [UserTableCombinationController::class, 'update'])->name('user-table.update')->middleware('permission:any,read-admin-user-table-combination');
             });
     // });
 });

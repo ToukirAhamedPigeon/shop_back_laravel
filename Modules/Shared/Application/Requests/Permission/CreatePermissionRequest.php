@@ -3,6 +3,7 @@
 namespace Modules\Shared\Application\Requests\Permission;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Modules\Shared\Infrastructure\Helpers\NameExpander;
 
 class CreatePermissionRequest extends FormRequest
 {
@@ -37,6 +38,14 @@ class CreatePermissionRequest extends FormRequest
 
     public function getPermissionNames(): array
     {
-        return array_map('trim', explode('=', $this->names));
+        return NameExpander::expandNames($this->names);
+    }
+
+    public function getExpandedPermissions(): array
+    {
+        if (empty($this->permissions)) {
+            return [];
+        }
+        return NameExpander::expandPermissionNames($this->permissions);
     }
 }

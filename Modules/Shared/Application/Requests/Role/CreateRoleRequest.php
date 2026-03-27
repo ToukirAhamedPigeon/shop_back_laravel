@@ -3,6 +3,7 @@
 namespace Modules\Shared\Application\Requests\Role;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Modules\Shared\Infrastructure\Helpers\NameExpander;
 
 class CreateRoleRequest extends FormRequest
 {
@@ -37,6 +38,14 @@ class CreateRoleRequest extends FormRequest
 
     public function getRoleNames(): array
     {
-        return array_map('trim', explode('=', $this->names));
+        return NameExpander::expandNames($this->names);
+    }
+
+    public function getExpandedRoles(): array
+    {
+        if (empty($this->roles)) {
+            return [];
+        }
+        return NameExpander::expandPermissionNames($this->roles);
     }
 }
