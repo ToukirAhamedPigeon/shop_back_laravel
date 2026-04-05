@@ -52,6 +52,8 @@ use Modules\Shared\Application\Services\IUniqueCheckService;
 use Modules\Shared\Infrastructure\Services\PermissionService;
 use Modules\Shared\Infrastructure\Services\RoleService;
 use Modules\Shared\Infrastructure\Services\UniqueCheckService;
+use Modules\Shared\Infrastructure\Helpers\RemoteFileHelper;
+use Modules\Shared\Infrastructure\Helpers\FileHelper;
 
 class SharedServiceProvider extends ServiceProvider
 {
@@ -67,6 +69,24 @@ class SharedServiceProvider extends ServiceProvider
         $this->registerConfig();
         $this->registerViews();
         // $this->loadMigrationsFrom(module_path($this->moduleName, 'Database/Migrations'));
+
+        // Initialize FileHelper with remote helper after all services are registered
+        $this->app->booted(function () {
+            try {
+                $remoteHelper = $this->app->make(RemoteFileHelper::class);
+                FileHelper::setRemoteHelper($remoteHelper);
+
+                $storageType = config('filesystems.default_storage_type', 'local');
+                \Illuminate\Support\Facades\Log::info('FileHelper initialized', [
+                    'storage_type' => $storageType,
+                    'remote_url' => config('filesystems.remote_storage_url')
+                ]);
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Failed to initialize RemoteFileHelper', [
+                    'error' => $e->getMessage()
+                ]);
+            }
+        });
     }
 
     /**
@@ -105,6 +125,11 @@ class SharedServiceProvider extends ServiceProvider
         $this->app->bind(IUniqueCheckService::class, UniqueCheckService::class);
         $this->app->bind(IPermissionService::class, PermissionService::class);
         $this->app->bind(IRoleService::class, RoleService::class);
+
+        // Register RemoteFileHelper as a singleton
+        $this->app->singleton(RemoteFileHelper::class, function ($app) {
+            return new RemoteFileHelper();
+        });
     }
 
     protected function registerConfig(): void

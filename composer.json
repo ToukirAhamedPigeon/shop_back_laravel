@@ -14,6 +14,7 @@
         "laravel/tinker": "^2.10.1",
         "nwidart/laravel-modules": "11.0",
         "predis/predis": "^3.2",
+        "provydon/docs-generate": "^1.2",
         "spatie/laravel-permission": "^6.21"
     },
     "require-dev": {
@@ -41,7 +42,8 @@
     "scripts": {
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
-            "@php artisan package:discover --ansi"
+            "@php artisan package:discover --ansi",
+            "@php artisan docs:generate"
         ],
         "post-update-cmd": [
             "@php artisan vendor:publish --tag=laravel-assets --ansi --force"

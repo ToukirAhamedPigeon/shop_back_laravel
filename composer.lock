@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "9d7432155f6c9952fc89b00a9fe2292e",
+    "content-hash": "47b1e1132c6daced417657cd6d0dac78",
     "packages": [
         {
             "name": "brick/math",
@@ -3752,6 +3752,63 @@
                 }
             ],
             "time": "2025-08-06T06:41:24+00:00"
+        },
+        {
+            "name": "provydon/docs-generate",
+            "version": "v1.2.3",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/provydon/docs-generate.git",
+                "reference": "ebd7dc9f75e62ef0d40b89fa7a51c41755894acc"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/provydon/docs-generate/zipball/ebd7dc9f75e62ef0d40b89fa7a51c41755894acc",
+                "reference": "ebd7dc9f75e62ef0d40b89fa7a51c41755894acc",
+                "shasum": ""
+            },
+            "require": {
+                "illuminate/console": "^9.0|^10.0|^11.0|^12.0|^13.0",
+                "illuminate/http": "^9.0|^10.0|^11.0|^12.0|^13.0",
+                "illuminate/routing": "^9.0|^10.0|^11.0|^12.0|^13.0",
+                "illuminate/support": "^9.0|^10.0|^11.0|^12.0|^13.0",
+                "illuminate/validation": "^9.0|^10.0|^11.0|^12.0|^13.0",
+                "php": "^8.1"
+            },
+            "require-dev": {
+                "mockery/mockery": "^1.4",
+                "orchestra/testbench": "^7.0|^8.0|^9.0|^10.0|^11.0",
+                "phpunit/phpunit": "^9.5.10|^10.5|^11.3.6|^12.0|^13.0"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "SwaggerAuto\\Providers\\DocsGenerateServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "SwaggerAuto\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Provydon",
+                    "email": "providenceifeosame@gmail.com"
+                }
+            ],
+            "description": "Automatic API documentation for your Laravel app — zero annotations, OpenAPI 3.0 JSON & Swagger UI.",
+            "support": {
+                "issues": "https://github.com/provydon/docs-generate/issues",
+                "source": "https://github.com/provydon/docs-generate/tree/v1.2.3"
+            },
+            "time": "2026-03-19T21:46:34+00:00"
         },
         {
             "name": "psr/clock",

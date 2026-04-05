@@ -1,5 +1,9 @@
 <?php
 
+/*
+After updating the routes, please run:
+php artisan docs:generate
+*/
 use Illuminate\Support\Facades\Route;
 use Modules\Shared\API\Controllers\AuthController;
 use Modules\Shared\API\Controllers\CommonController;
@@ -46,6 +50,7 @@ Route::prefix('auth/password-reset')->group(function () {
     Route::post('/change-password/verify', [PasswordResetController::class, 'verifyPasswordChange'])->name('password.change.verify');
     Route::get('/change-password/validate/{token}', [PasswordResetController::class, 'validateChangeToken'])->name('password.change.validate');
 });
+
 
 /*
 |--------------------------------------------------------------------------
@@ -96,7 +101,7 @@ Route::middleware('auth:api')->group(function () {
     */
     Route::prefix('users')->group(function () {
         Route::get('/profile', [UserController::class, 'getProfile'])->name('user.profile')->middleware('permission:any,read-admin-profile');
-        Route::put('/profile', [UserController::class, 'updateProfile'])->name('user.profile.update')->middleware('parse.multipart,permission:any,update-admin-profile');
+        Route::put('/profile', [UserController::class, 'updateProfile'])->name('user.profile.update')->middleware(['parse.multipart','permission:any,update-admin-profile']);
     });
 
     /*
@@ -198,3 +203,4 @@ Route::middleware('auth:api')->group(function () {
             });
     // });
 });
+

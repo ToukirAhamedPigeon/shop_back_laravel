@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\App;
 use Exception;
 use Illuminate\Support\Facades\Log;
 
+
 class AuthController extends Controller
 {
     private IAuthService $authService;
