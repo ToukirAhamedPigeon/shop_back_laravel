@@ -141,11 +141,12 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/{id}/restore', [PermissionController::class, 'restorePermission'])->name('permissions.restore')->middleware('permission:any,restore-admin-permissions');
         Route::get('/{id}/delete-info', [PermissionController::class, 'getDeleteInfo'])->name('permissions.delete-info')->middleware('permission:any,restore-admin-permissions');
     });
-        /*
-        |-----------------------------
-        | User Logs (Admin)
-        |-----------------------------
-        */
+
+    /*
+    |-----------------------------
+    | User Logs (Admin)
+    |-----------------------------
+    */
     Route::prefix('UserLog')->group(function () {
         Route::post('/', [UserLogController::class, 'getFiltered'])->name('userlog.filtered')->middleware('permission:any,read-admin-user-logs');
         Route::get('/{id}', [UserLogController::class, 'get'])->name('userlog.get')->middleware('permission:any,read-admin-user-logs');
@@ -154,11 +155,11 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/creators', [UserLogController::class, 'creators'])->name('userlog.creators')->middleware('permission:any,read-admin-user-logs');
     });
 
-        /*
-        |-----------------------------
-        | Users (Admin)
-        |-----------------------------
-        */
+    /*
+    |-----------------------------
+    | Users (Admin)
+    |-----------------------------
+    */
     Route::prefix('users')->group(function () {
         Route::post('/', [UserController::class, 'getUsers'])->name('users.list')->middleware('permission:any,read-admin-users');
         Route::get('/{id}', [UserController::class, 'getUser'])->name('users.get')->middleware('permission:any,read-admin-users');
@@ -172,35 +173,69 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/{id}/delete-info', [UserController::class, 'getDeleteInfo'])->name('users.delete-info')->middleware('permission:any,restore-admin-users');
     });
 
-        /*
-        |-----------------------------
-        | Options (Admin)
-        |-----------------------------
-        */
-        Route::prefix('Options')->group(function () {
-            Route::post('/{type}', [OptionsController::class, 'getOptions'])->name('options.get')->middleware('permission:any,read-admin-options');
+    /*
+    |-----------------------------
+    | Options (Admin)
+    |-----------------------------
+    */
+    Route::prefix('Options')->group(function () {
+        Route::post('/{type}', [OptionsController::class, 'getOptions'])->name('options.get')->middleware('permission:any,read-admin-options');
+    });
+
+    /*
+    |-----------------------------
+    | Common (Admin)
+    |-----------------------------
+    */
+    Route::prefix('common')->group(function () {
+        Route::post('/check-unique', [CommonController::class, 'checkUnique'])->name('common.check-unique')->middleware('permission:any,check-admin-unique');
+    });
+
+    /*
+    |-----------------------------
+    | User Table Combination (Admin - requires both permissions)
+    |-----------------------------
+    */
+    Route::prefix('user-table-combination')
+        ->middleware('permission:any,read-admin-user-table-combination,update-admin-user-table-combination')
+        ->group(function () {
+            Route::get('/', [UserTableCombinationController::class, 'get'])->name('user-table.get')->middleware('permission:any,read-admin-user-table-combination');
+            Route::put('/', [UserTableCombinationController::class, 'update'])->name('user-table.update')->middleware('permission:any,read-admin-user-table-combination');
         });
 
-        /*
-        |-----------------------------
-        | Common (Admin)
-        |-----------------------------
-        */
-        Route::prefix('common')->group(function () {
-            Route::post('/check-unique', [CommonController::class, 'checkUnique'])->name('common.check-unique')->middleware('permission:any,check-admin-unique');
-        });
+    /*
+    |-----------------------------
+    | Translations Admin (CRUD)
+    |-----------------------------
+    */
+    Route::prefix('translations')->group(function () {
+        Route::post('/list', [TranslationsController::class, 'getTranslations'])
+            ->name('translations.list')
+            ->middleware('permission:any,read-admin-translations');
 
-        /*
-        |-----------------------------
-        | User Table Combination (Admin - requires both permissions)
-        |-----------------------------
-        */
-        Route::prefix('user-table-combination')
-            ->middleware('permission:any,read-admin-user-table-combination,update-admin-user-table-combination')
-            ->group(function () {
-                Route::get('/', [UserTableCombinationController::class, 'get'])->name('user-table.get')->middleware('permission:any,read-admin-user-table-combination');
-                Route::put('/', [UserTableCombinationController::class, 'update'])->name('user-table.update')->middleware('permission:any,read-admin-user-table-combination');
-            });
+        Route::get('/{id}', [TranslationsController::class, 'getTranslation'])
+            ->name('translations.get')
+            ->middleware('permission:any,read-admin-translations');
+
+        Route::get('/{id}/edit', [TranslationsController::class, 'getTranslationForEdit'])
+            ->name('translations.edit')
+            ->middleware('permission:any,update-admin-translations');
+
+        Route::post('/create', [TranslationsController::class, 'createTranslation'])
+            ->name('translations.create')
+            ->middleware('permission:any,create-admin-translations');
+
+        Route::put('/{id}', [TranslationsController::class, 'updateTranslation'])
+            ->name('translations.update')
+            ->middleware('permission:any,update-admin-translations');
+
+        Route::delete('/{id}', [TranslationsController::class, 'deleteTranslation'])
+            ->name('translations.delete')
+            ->middleware('permission:any,delete-admin-translations');
+
+        Route::get('/modules', [TranslationsController::class, 'getModules'])
+            ->name('translations.modules')
+            ->middleware('permission:any,read-admin-translations');
+    });
     // });
 });
-

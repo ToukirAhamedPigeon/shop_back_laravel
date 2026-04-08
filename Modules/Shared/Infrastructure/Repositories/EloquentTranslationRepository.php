@@ -7,15 +7,15 @@ use Modules\Shared\Domain\Entities\TranslationKey as TranslationKeyEntity;
 use Modules\Shared\Domain\Entities\TranslationValue as TranslationValueEntity;
 use Modules\Shared\Infrastructure\Models\EloquentTranslationKey;
 use Modules\Shared\Infrastructure\Models\EloquentTranslationValue;
+use Modules\Shared\Infrastructure\Models\EloquentUser;
+use Modules\Shared\Application\Requests\Translation\TranslationFilterRequest;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class EloquentTranslationRepository implements ITranslationRepository
 {
     /**
      * Get all translations for a given language, optionally filtered by module.
-     *
-     * @param string $lang
-     * @param string|null $module
-     * @return TranslationValueEntity[]
      */
     public function getByLang(string $lang, ?string $module = null): array
     {
@@ -36,12 +36,12 @@ class EloquentTranslationRepository implements ITranslationRepository
                 $v->key_id,
                 $v->lang,
                 $v->value,
-                $v->created_at ? \DateTimeImmutable::createFromMutable($v->created_at) : null,
+                $v->created_at ? Carbon::parse($v->created_at)->toDateTimeImmutable() : null,
                 new TranslationKeyEntity(
                     $v->key->id,
                     $v->key->key,
                     $v->key->module,
-                     $v->key->created_at ? \DateTimeImmutable::createFromMutable($v->key->created_at) : null
+                    $v->key->created_at ? Carbon::parse($v->key->created_at)->toDateTimeImmutable() : null
                 )
             );
         })->all();
@@ -49,10 +49,6 @@ class EloquentTranslationRepository implements ITranslationRepository
 
     /**
      * Get a TranslationKey by module and key.
-     *
-     * @param string $module
-     * @param string $key
-     * @return TranslationKeyEntity|null
      */
     public function getKey(string $module, string $key): ?TranslationKeyEntity
     {
@@ -69,7 +65,7 @@ class EloquentTranslationRepository implements ITranslationRepository
                 $v->key_id,
                 $v->lang,
                 $v->value,
-                $v->created_at ? \DateTimeImmutable::createFromMutable($v->created_at) : null
+                $v->created_at ? Carbon::parse($v->created_at)->toDateTimeImmutable() : null
             );
         })->all();
 
@@ -77,18 +73,13 @@ class EloquentTranslationRepository implements ITranslationRepository
             $model->id,
             $model->key,
             $model->module,
-            $model->created_at,
+            $model->created_at ? Carbon::parse($model->created_at)->toDateTimeImmutable() : null,
             $values
         );
     }
 
     /**
      * Add or update a translation.
-     *
-     * @param string $module
-     * @param string $key
-     * @param string $lang
-     * @param string $value
      */
     public function addOrUpdate(string $module, string $key, string $lang, string $value): void
     {
@@ -103,5 +94,226 @@ class EloquentTranslationRepository implements ITranslationRepository
         $tval->value = $value;
         $tval->created_at = $tval->exists ? $tval->created_at : now();
         $tval->save();
+    }
+
+    /**
+     * Get filtered translations query with pagination
+     */
+    public function getFilteredTranslationsQuery(TranslationFilterRequest $request): array
+    {
+        $query = EloquentTranslationKey::with('values');
+
+        // Apply search filter
+        if ($request->filled('q')) {
+            $q = trim($request->q);
+            $query->where(function ($qry) use ($q) {
+                $qry->where('key', 'like', "%{$q}%")
+                    ->orWhere('module', 'like', "%{$q}%")
+                    ->orWhereHas('values', function ($subQ) use ($q) {
+                        $subQ->where('value', 'like', "%{$q}%");
+                    });
+            });
+        }
+
+        // Apply module filter
+        if ($request->filled('modules')) {
+            $query->whereIn('module', $request->modules);
+        }
+
+        // Apply date range filter
+        if ($request->filled('startDate')) {
+            $startDate = Carbon::parse($request->startDate)->startOfDay();
+            $query->where('created_at', '>=', $startDate);
+        }
+
+        if ($request->filled('endDate')) {
+            $endDate = Carbon::parse($request->endDate)->endOfDay();
+            $query->where('created_at', '<=', $endDate);
+        }
+
+        // Get total count
+        $totalCount = $query->count();
+        $grandTotalCount = EloquentTranslationKey::count();
+
+        // Apply sorting
+        $sortColumn = $request->getSortColumn();
+        $sortOrder = $request->sortOrder ?? 'desc';
+        $query->orderBy($sortColumn, $sortOrder);
+
+        // Apply pagination
+        $page = $request->page ?? 1;
+        $limit = $request->limit ?? 10;
+        $items = $query->skip(($page - 1) * $limit)->take($limit)->get();
+
+        // Add english and bangla values to each item
+        foreach ($items as $item) {
+            $item->englishValue = $item->values->firstWhere('lang', 'en')?->value ?? '';
+            $item->banglaValue = $item->values->firstWhere('lang', 'bn')?->value ?? '';
+        }
+
+        return [
+            'items' => $items,
+            'totalCount' => $totalCount,
+            'grandTotalCount' => $grandTotalCount,
+        ];
+    }
+
+    /**
+     * Get translation key with values by ID
+     */
+    public function getTranslationKeyWithValues(int $id): ?object
+    {
+        $translation = EloquentTranslationKey::with('values')->find($id);
+
+        if ($translation) {
+            // Add english and bangla values as properties
+            $translation->englishValue = $translation->values->firstWhere('lang', 'en')?->value ?? '';
+            $translation->banglaValue = $translation->values->firstWhere('lang', 'bn')?->value ?? '';
+        }
+
+        return $translation;
+    }
+
+    /**
+     * Check if translation key exists
+     */
+    public function translationKeyExists(string $module, string $key, ?int $ignoreId = null): bool
+    {
+        $query = EloquentTranslationKey::where('module', $module)->where('key', $key);
+        if ($ignoreId) {
+            $query->where('id', '!=', $ignoreId);
+        }
+        return $query->exists();
+    }
+
+    /**
+     * Create new translation
+     */
+    public function createTranslation(string $key, string $module, string $englishValue, string $banglaValue, ?string $createdBy): object
+    {
+        DB::beginTransaction();
+
+        try {
+            // Create translation key
+            $translationKey = EloquentTranslationKey::create([
+                'key' => $key,
+                'module' => $module,
+                'created_at' => now(),
+                'updated_at' => null,
+                'created_by' => $createdBy,
+                'updated_by' => null,
+            ]);
+
+            // Create English value
+            EloquentTranslationValue::create([
+                'key_id' => $translationKey->id,
+                'lang' => 'en',
+                'value' => $englishValue,
+                'created_at' => now(),
+            ]);
+
+            // Create Bangla value
+            EloquentTranslationValue::create([
+                'key_id' => $translationKey->id,
+                'lang' => 'bn',
+                'value' => $banglaValue,
+                'created_at' => now(),
+            ]);
+
+            DB::commit();
+
+            return $translationKey;
+        } catch (\Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Update translation
+     */
+    public function updateTranslation(int $id, string $key, string $module, string $englishValue, string $banglaValue, ?string $updatedBy): void
+    {
+        DB::beginTransaction();
+
+        try {
+            $translationKey = EloquentTranslationKey::with('values')->findOrFail($id);
+
+            // Update key and module
+            $translationKey->update([
+                'key' => $key,
+                'module' => $module,
+                'updated_at' => now(),
+                'updated_by' => $updatedBy,
+            ]);
+
+            // Update or create English value
+            $englishValueModel = $translationKey->values->firstWhere('lang', 'en');
+            if ($englishValueModel) {
+                $englishValueModel->update(['value' => $englishValue]);
+            } else {
+                EloquentTranslationValue::create([
+                    'key_id' => $translationKey->id,
+                    'lang' => 'en',
+                    'value' => $englishValue,
+                    'created_at' => now(),
+                ]);
+            }
+
+            // Update or create Bangla value
+            $banglaValueModel = $translationKey->values->firstWhere('lang', 'bn');
+            if ($banglaValueModel) {
+                $banglaValueModel->update(['value' => $banglaValue]);
+            } else {
+                EloquentTranslationValue::create([
+                    'key_id' => $translationKey->id,
+                    'lang' => 'bn',
+                    'value' => $banglaValue,
+                    'created_at' => now(),
+                ]);
+            }
+
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Delete translation
+     */
+    public function deleteTranslation(int $id): void
+    {
+        DB::beginTransaction();
+
+        try {
+            $translationKey = EloquentTranslationKey::with('values')->findOrFail($id);
+
+            // Delete values first
+            foreach ($translationKey->values as $value) {
+                $value->delete();
+            }
+
+            // Delete key
+            $translationKey->delete();
+
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Get distinct modules
+     */
+    public function getDistinctModules(): array
+    {
+        return EloquentTranslationKey::select('module')
+            ->distinct()
+            ->orderBy('module')
+            ->pluck('module')
+            ->toArray();
     }
 }
