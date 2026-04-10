@@ -237,5 +237,43 @@ Route::middleware('auth:api')->group(function () {
             ->name('translations.modules')
             ->middleware('permission:any,read-admin-translations');
     });
+
+    Route::prefix('options')->group(function () {
+        Route::post('/list', [OptionsController::class, 'getOptionsList'])
+            ->name('options.list')
+            ->middleware('permission:any,read-admin-options');
+
+        Route::get('/{id}', [OptionsController::class, 'getOption'])
+            ->name('options.get')
+            ->middleware('permission:any,read-admin-options');
+
+        Route::get('/{id}/edit', [OptionsController::class, 'getOptionForEdit'])
+            ->name('options.edit')
+            ->middleware('permission:any,update-admin-options');
+
+        Route::post('/create', [OptionsController::class, 'create'])
+            ->name('options.create')
+            ->middleware('permission:any,create-admin-options');
+
+        Route::put('/{id}', [OptionsController::class, 'update'])
+            ->name('options.update')
+            ->middleware('permission:any,update-admin-options');
+
+        Route::delete('/{id}', [OptionsController::class, 'deleteOption'])
+            ->name('options.delete')
+            ->middleware('permission:any,delete-admin-options');
+
+        Route::post('/{id}/restore', [OptionsController::class, 'restoreOption'])
+            ->name('options.restore')
+            ->middleware('permission:any,update-admin-options');
+
+        Route::get('/{id}/delete-info', [OptionsController::class, 'getDeleteInfo'])
+            ->name('options.delete-info')
+            ->middleware('permission:any,delete-admin-options');
+
+        Route::post('/parents', [OptionsController::class, 'getParentOptions'])
+            ->name('options.parents')
+            ->middleware('permission:any,read-admin-options');
+    });
     // });
 });

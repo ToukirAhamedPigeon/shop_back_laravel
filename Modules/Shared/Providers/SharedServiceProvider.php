@@ -54,6 +54,8 @@ use Modules\Shared\Infrastructure\Services\RoleService;
 use Modules\Shared\Infrastructure\Services\UniqueCheckService;
 use Modules\Shared\Infrastructure\Helpers\RemoteFileHelper;
 use Modules\Shared\Infrastructure\Helpers\FileHelper;
+use Modules\Shared\Application\Repositories\IOptionRepository;
+use Modules\Shared\Infrastructure\Repositories\EloquentOptionRepository;
 
 class SharedServiceProvider extends ServiceProvider
 {
@@ -125,6 +127,7 @@ class SharedServiceProvider extends ServiceProvider
         $this->app->bind(IUniqueCheckService::class, UniqueCheckService::class);
         $this->app->bind(IPermissionService::class, PermissionService::class);
         $this->app->bind(IRoleService::class, RoleService::class);
+        $this->app->bind(IOptionRepository::class, EloquentOptionRepository::class);
 
         // Register RemoteFileHelper as a singleton
         $this->app->singleton(RemoteFileHelper::class, function ($app) {
