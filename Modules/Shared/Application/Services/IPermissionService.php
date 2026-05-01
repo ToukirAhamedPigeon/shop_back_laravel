@@ -5,6 +5,7 @@ namespace Modules\Shared\Application\Services;
 use Modules\Shared\Application\Requests\Permission\PermissionFilterRequest;
 use Modules\Shared\Application\Requests\Permission\CreatePermissionRequest;
 use Modules\Shared\Application\Requests\Permission\UpdatePermissionRequest;
+use Modules\Shared\Application\Resources\Common\BulkOperationResource;
 
 interface IPermissionService
 {
@@ -16,4 +17,15 @@ interface IPermissionService
     public function deletePermission(string $id, bool $permanent, ?string $currentUserId): array;
     public function restorePermission(string $id, ?string $currentUserId): array;
     public function checkDeleteEligibility(string $id): array;
+    // ==================== BULK OPERATIONS ====================
+
+    /**
+     * Bulk delete permissions (soft or permanent)
+     */
+    public function bulkDeletePermissions(array $ids, bool $permanent, ?string $currentUserId): BulkOperationResource;
+
+    /**
+     * Bulk restore permissions
+     */
+    public function bulkRestorePermissions(array $ids, ?string $currentUserId): BulkOperationResource;
 }

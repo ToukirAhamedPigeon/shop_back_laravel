@@ -8,6 +8,7 @@ use Illuminate\Routing\Controller;
 use Modules\Shared\Application\Requests\Translation\TranslationFilterRequest;
 use Modules\Shared\Application\Requests\Translation\CreateTranslationRequest;
 use Modules\Shared\Application\Requests\Translation\UpdateTranslationRequest;
+use Modules\Shared\Application\Requests\Common\BulkOperationRequest;
 use Modules\Shared\Application\Services\ITranslationService;
 use Modules\Shared\Application\Repositories\IRolePermissionRepository;
 use Illuminate\Support\Facades\Auth;
@@ -148,5 +149,37 @@ class TranslationsController extends Controller
     {
         $modules = $this->translationService->getModulesForOptions();
         return response()->json($modules);
+    }
+
+    /**
+     * POST /api/translations/bulk-delete
+     * Bulk delete translations
+     */
+    public function bulkDelete(BulkOperationRequest $request): JsonResponse
+    {
+        // Convert string IDs to int for translations
+        $ids = [];
+        $invalidIds = [];
+
+        foreach ($request->ids as $id) {
+            if (is_numeric($id)) {
+                $ids[] = (int) $id;
+            } else {
+                $invalidIds[] = $id;
+            }
+        }
+
+        if (!empty($invalidIds)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid ID format for IDs: ' . implode(', ', $invalidIds)
+            ], 400);
+        }
+
+        $currentUserId = Auth::id();
+        $result = $this->translationService->bulkDeleteTranslations($ids, $currentUserId);
+
+        // Return the resource directly - it will be converted to JSON automatically
+        return response()->json($result);
     }
 }

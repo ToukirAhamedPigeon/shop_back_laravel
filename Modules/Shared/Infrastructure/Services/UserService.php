@@ -809,6 +809,71 @@ class UserService implements IUserService
     }
 
     /**
+     * Bulk delete users (soft or permanent)
+     */
+    public function bulkDelete(array $ids, bool $permanent, ?string $currentUserId): array
+    {
+        $deletedBy = null;
+        if (!empty($currentUserId) && Str::isUuid($currentUserId)) {
+            $deletedBy = $currentUserId;
+        }
+
+        $result = $this->repo->bulkDelete($ids, $permanent, $deletedBy);
+
+        // Log bulk operation
+        if ($result['successCount'] > 0) {
+            $this->userLogHelper->log(
+                actionType: 'BulkDelete',
+                detail: "Bulk " . ($permanent ? "permanent" : "soft") . " delete of {$result['successCount']} user(s). Failed: {$result['failedCount']}",
+                changes: json_encode([
+                    'ids' => $ids,
+                    'permanent' => $permanent,
+                    'successCount' => $result['successCount'],
+                    'failedCount' => $result['failedCount'],
+                    'errors' => $result['errors']
+                ]),
+                modelName: 'User',
+                modelId: 'bulk',
+                userId: $deletedBy ?? ''
+            );
+        }
+
+        return $result;
+    }
+
+    /**
+     * Bulk restore users
+     */
+    public function bulkRestore(array $ids, ?string $currentUserId): array
+    {
+        $restoredBy = null;
+        if (!empty($currentUserId) && Str::isUuid($currentUserId)) {
+            $restoredBy = $currentUserId;
+        }
+
+        $result = $this->repo->bulkRestore($ids, $restoredBy);
+
+        // Log bulk operation
+        if ($result['successCount'] > 0) {
+            $this->userLogHelper->log(
+                actionType: 'BulkRestore',
+                detail: "Bulk restore of {$result['successCount']} user(s). Failed: {$result['failedCount']}",
+                changes: json_encode([
+                    'ids' => $ids,
+                    'successCount' => $result['successCount'],
+                    'failedCount' => $result['failedCount'],
+                    'errors' => $result['errors']
+                ]),
+                modelName: 'User',
+                modelId: 'bulk',
+                userId: $restoredBy ?? ''
+            );
+        }
+
+        return $result;
+    }
+
+    /**
      * Check if user can be permanently deleted
      */
     public function checkDeleteEligibility(string $id): array

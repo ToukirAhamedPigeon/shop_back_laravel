@@ -11,6 +11,7 @@ final class TranslationValue
     public string $lang;
     public string $value;
     public DateTimeImmutable $createdAt;
+    public ?DateTimeImmutable $updatedAt;
 
     public ?TranslationKey $key = null;
 
@@ -20,6 +21,7 @@ final class TranslationValue
         string $lang,
         string $value,
         ?DateTimeImmutable $createdAt = null,
+        ?DateTimeImmutable $updatedAt = null,
         ?TranslationKey $key = null
     ) {
         $this->id = $id;
@@ -27,6 +29,13 @@ final class TranslationValue
         $this->lang = $lang;
         $this->value = $value;
         $this->createdAt = $createdAt ?? new DateTimeImmutable();
+        $this->updatedAt = $updatedAt;
         $this->key = $key;
+    }
+
+    public function updateValue(string $value): void
+    {
+        $this->value = $value;
+        $this->updatedAt = new DateTimeImmutable();
     }
 }

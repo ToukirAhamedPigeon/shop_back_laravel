@@ -9,6 +9,7 @@ use Modules\Shared\Application\Services\IRoleService;
 use Modules\Shared\Application\Requests\Role\RoleFilterRequest;
 use Modules\Shared\Application\Requests\Role\CreateRoleRequest;
 use Modules\Shared\Application\Requests\Role\UpdateRoleRequest;
+use Modules\Shared\Application\Requests\Common\BulkOperationRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
@@ -144,5 +145,56 @@ class RoleController extends Controller
             'canBePermanent' => $result['canBePermanent'],
             'message' => $result['message']
         ]);
+    }
+    // ... existing methods ...
+
+    /**
+     * Bulk delete roles (soft or permanent)
+     *
+     * POST /api/roles/bulk-delete
+     */
+    public function bulkDelete(BulkOperationRequest $request): JsonResponse
+    {
+        // Validate and convert IDs
+        $validation = $request->validateIds();
+
+        if (!$validation['isValid']) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid UUID format for IDs: ' . implode(', ', $validation['invalidIds'])
+            ], 400);
+        }
+
+        $guids = $request->getGuids();
+        $currentUserId = Auth::id();
+
+        $result = $this->service->bulkDeleteRoles($guids, $request->permanent, $currentUserId);
+
+        return response()->json($result);
+    }
+
+    /**
+     * Bulk restore soft-deleted roles
+     *
+     * POST /api/roles/bulk-restore
+     */
+    public function bulkRestore(BulkOperationRequest $request): JsonResponse
+    {
+        // Validate and convert IDs
+        $validation = $request->validateIds();
+
+        if (!$validation['isValid']) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid UUID format for IDs: ' . implode(', ', $validation['invalidIds'])
+            ], 400);
+        }
+
+        $guids = $request->getGuids();
+        $currentUserId = Auth::id();
+
+        $result = $this->service->bulkRestoreRoles($guids, $currentUserId);
+
+        return response()->json($result);
     }
 }

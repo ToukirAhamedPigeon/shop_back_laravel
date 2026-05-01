@@ -200,4 +200,32 @@ interface IRolePermissionRepository
      * Get role names by permission names
      */
     public function getRolesByPermissionNames(array $permissionNames): array;
+
+// ==================== BULK OPERATIONS FOR ROLES ====================
+
+    /**
+     * Bulk delete roles (soft or permanent)
+     * @return array{success: bool, message: string, totalCount: int, successCount: int, failedCount: int, errors: array}
+     */
+    public function bulkDeleteRoles(array $ids, bool $permanent, ?string $deletedBy): array;
+
+    /**
+     * Bulk restore roles
+     * @return array{success: bool, message: string, totalCount: int, successCount: int, failedCount: int, errors: array}
+     */
+    public function bulkRestoreRoles(array $ids, ?string $restoredBy): array;
+
+    // ==================== BULK OPERATIONS FOR PERMISSIONS ====================
+
+    /**
+     * Bulk delete permissions (soft or permanent)
+     * @return array{success: bool, message: string, totalCount: int, successCount: int, failedCount: int, errors: array}
+     */
+    public function bulkDeletePermissions(array $ids, bool $permanent, ?string $deletedBy): array;
+
+    /**
+     * Bulk restore permissions
+     * @return array{success: bool, message: string, totalCount: int, successCount: int, failedCount: int, errors: array}
+     */
+    public function bulkRestorePermissions(array $ids, ?string $restoredBy): array;
 }

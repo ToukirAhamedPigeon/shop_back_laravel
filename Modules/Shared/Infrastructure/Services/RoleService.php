@@ -9,6 +9,7 @@ use Modules\Shared\Application\Requests\Role\CreateRoleRequest;
 use Modules\Shared\Application\Requests\Role\UpdateRoleRequest;
 use Modules\Shared\Application\Resources\Role\RoleResource;
 use Modules\Shared\Domain\Entities\Role;
+use Modules\Shared\Application\Resources\Common\BulkOperationResource;
 use Modules\Shared\Infrastructure\Helpers\UserLogHelper;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -368,5 +369,65 @@ class RoleService implements IRoleService
             : 'Role must be soft deleted due to existing related records';
 
         return ['success' => true, 'message' => $message, 'canBePermanent' => $canBePermanent];
+    }
+    // ==================== BULK OPERATIONS ====================
+
+    public function bulkDeleteRoles(array $ids, bool $permanent, ?string $currentUserId): BulkOperationResource
+    {
+        $deletedBy = null;
+        if (!empty($currentUserId) && \Illuminate\Support\Str::isUuid($currentUserId)) {
+            $deletedBy = $currentUserId;
+        }
+
+        $result = $this->repo->bulkDeleteRoles($ids, $permanent, $deletedBy);
+
+        // Log the bulk operation
+        if ($result['successCount'] > 0) {
+            $this->userLogHelper->log(
+                actionType: 'BulkDelete',
+                detail: "Bulk " . ($permanent ? "permanent" : "soft") . " delete of {$result['successCount']} role(s). Failed: {$result['failedCount']}",
+                changes: json_encode([
+                    'ids' => $ids,
+                    'permanent' => $permanent,
+                    'successCount' => $result['successCount'],
+                    'failedCount' => $result['failedCount'],
+                    'errors' => $result['errors']
+                ]),
+                modelName: 'Role',
+                modelId: 'bulk',
+                userId: $deletedBy ?? ''
+            );
+        }
+
+        return new BulkOperationResource($result);
+    }
+
+    public function bulkRestoreRoles(array $ids, ?string $currentUserId): BulkOperationResource
+    {
+        $restoredBy = null;
+        if (!empty($currentUserId) && \Illuminate\Support\Str::isUuid($currentUserId)) {
+            $restoredBy = $currentUserId;
+        }
+
+        $result = $this->repo->bulkRestoreRoles($ids, $restoredBy);
+
+        // Log the bulk operation
+        if ($result['successCount'] > 0) {
+            $this->userLogHelper->log(
+                actionType: 'BulkRestore',
+                detail: "Bulk restore of {$result['successCount']} role(s). Failed: {$result['failedCount']}",
+                changes: json_encode([
+                    'ids' => $ids,
+                    'successCount' => $result['successCount'],
+                    'failedCount' => $result['failedCount'],
+                    'errors' => $result['errors']
+                ]),
+                modelName: 'Role',
+                modelId: 'bulk',
+                userId: $restoredBy ?? ''
+            );
+        }
+
+        return new BulkOperationResource($result);
     }
 }

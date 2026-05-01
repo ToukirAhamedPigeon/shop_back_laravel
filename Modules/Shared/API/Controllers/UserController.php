@@ -11,6 +11,7 @@ use Modules\Shared\Application\Requests\User\UserFilterRequest;
 use Modules\Shared\Application\Requests\User\CreateUserRequest;
 use Modules\Shared\Application\Requests\User\UpdateUserRequest;
 use Modules\Shared\Application\Requests\User\UpdateProfileRequest;
+use Modules\Shared\Application\Requests\Common\BulkOperationRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
@@ -250,5 +251,61 @@ class UserController extends Controller
             'canBePermanent' => $result['canBePermanent'],
             'message' => $result['message']
         ]);
+    }
+
+    /**
+     * Bulk delete users
+     *
+     * POST /api/users/bulk-delete
+     */
+    public function bulkDelete(BulkOperationRequest $request): JsonResponse
+    {
+        $validation = $request->validateIds();
+
+        if (!$validation['isValid']) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid GUID format for IDs: ' . implode(', ', $validation['invalidIds'])
+            ], 400);
+        }
+
+        $ids = $request->getGuids();
+        $currentUserId = Auth::id();
+
+        $result = $this->service->bulkDelete($ids, $request->permanent, $currentUserId);
+
+        if (!$result['success']) {
+            return response()->json($result, 400);
+        }
+
+        return response()->json($result);
+    }
+
+    /**
+     * Bulk restore users
+     *
+     * POST /api/users/bulk-restore
+     */
+    public function bulkRestore(BulkOperationRequest $request): JsonResponse
+    {
+        $validation = $request->validateIds();
+
+        if (!$validation['isValid']) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid GUID format for IDs: ' . implode(', ', $validation['invalidIds'])
+            ], 400);
+        }
+
+        $ids = $request->getGuids();
+        $currentUserId = Auth::id();
+
+        $result = $this->service->bulkRestore($ids, $currentUserId);
+
+        if (!$result['success']) {
+            return response()->json($result, 400);
+        }
+
+        return response()->json($result);
     }
 }

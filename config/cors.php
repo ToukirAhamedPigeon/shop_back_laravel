@@ -1,11 +1,18 @@
 <?php
 
 return [
-    'paths' => ['api/*'],
-    'allowed_methods' => explode(',', env('CORS_ALLOWED_METHODS', '*')),
-    'allowed_origins' => explode(',', env('CORS_ALLOWED_ORIGINS', '*')),
-    'allowed_headers' => explode(',', env('CORS_ALLOWED_HEADERS', '*')),
-    'exposed_headers' => [],
+    'paths' => ['api/*', 'csrf/token', 'sanctum/csrf-cookie', '*'],
+    'allowed_methods' => ['*'],
+    'allowed_origins' => [
+        'http://localhost:5173',
+        'http://localhost:5174',
+        'http://localhost:4200',
+        'http://localhost:3000',
+        'http://localhost:8000',
+    ],
+    'allowed_origins_patterns' => [],
+    'allowed_headers' => ['*'],
+    'exposed_headers' => ['X-CSRF-TOKEN'],
     'max_age' => 0,
-    'supports_credentials' => env('CORS_SUPPORTS_CREDENTIALS', true),
+    'supports_credentials' => true,
 ];

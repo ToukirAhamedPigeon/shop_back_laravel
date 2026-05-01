@@ -145,10 +145,20 @@ final class User
         $this->isActive = false;
     }
 
-    public function markDeleted(): void
+    public function markDeleted(?string $deletedBy = null): void
     {
         $this->isDeleted = true;
         $this->deletedAt = new DateTimeImmutable();
+        $this->updatedBy = $deletedBy;
+        $this->updatedAt = new DateTimeImmutable();
+    }
+
+    public function restore(?string $restoredBy = null): void
+    {
+        $this->isDeleted = false;
+        $this->deletedAt = null;
+        $this->updatedBy = $restoredBy;
+        $this->updatedAt = new DateTimeImmutable();
     }
 
     public function addRefreshToken(RefreshToken $token): void
@@ -156,15 +166,19 @@ final class User
         $this->refreshTokens[] = $token;
     }
 
-    public function verifyEmail(?DateTimeImmutable $at = null): void
+    public function verifyEmail(?DateTimeImmutable $at = null, ?string $verifiedBy = null): void
     {
         $this->emailVerifiedAt = $at ?? new DateTimeImmutable();
+        $this->updatedBy = $verifiedBy;
+        $this->updatedAt = new DateTimeImmutable();
     }
 
-    public function updateLastLogin(?string $ip): void
+    public function updateLastLogin(?string $ip, ?string $userId = null): void
     {
         $this->lastLoginAt = new DateTimeImmutable();
         $this->lastLoginIp = $ip;
+        $this->updatedBy = $userId;
+        $this->updatedAt = new DateTimeImmutable();
     }
 
     public function clearRememberToken(): void
@@ -180,5 +194,39 @@ final class User
     public function setPermissions(array $permissions): void
     {
         $this->permissions = $permissions;
+    }
+
+    public function updateProfile(
+        string $name,
+        string $username,
+        string $email,
+        ?string $mobileNo = null,
+        ?string $nid = null,
+        ?string $address = null,
+        ?string $bio = null,
+        ?string $gender = null,
+        ?DateTimeImmutable $dateOfBirth = null,
+        ?string $profileImage = null,
+        bool $removeProfileImage = false,
+        ?string $updatedBy = null
+    ): void {
+        $this->name = $name;
+        $this->username = $username;
+        $this->email = $email;
+        $this->mobileNo = $mobileNo;
+        $this->nid = $nid;
+        $this->address = $address;
+        $this->bio = $bio;
+        $this->gender = $gender;
+        $this->dateOfBirth = $dateOfBirth;
+
+        if ($removeProfileImage) {
+            $this->profileImage = null;
+        } elseif ($profileImage !== null) {
+            $this->profileImage = $profileImage;
+        }
+
+        $this->updatedBy = $updatedBy;
+        $this->updatedAt = new DateTimeImmutable();
     }
 }

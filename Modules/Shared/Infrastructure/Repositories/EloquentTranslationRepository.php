@@ -9,6 +9,8 @@ use Modules\Shared\Infrastructure\Models\EloquentTranslationKey;
 use Modules\Shared\Infrastructure\Models\EloquentTranslationValue;
 use Modules\Shared\Infrastructure\Models\EloquentUser;
 use Modules\Shared\Application\Requests\Translation\TranslationFilterRequest;
+use Modules\Shared\Application\Resources\Common\BulkOperationResource;
+use Modules\Shared\Application\Resources\Common\BulkOperationErrorResource;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
@@ -37,12 +39,8 @@ class EloquentTranslationRepository implements ITranslationRepository
                 $v->lang,
                 $v->value,
                 $v->created_at ? Carbon::parse($v->created_at)->toDateTimeImmutable() : null,
-                new TranslationKeyEntity(
-                    $v->key->id,
-                    $v->key->key,
-                    $v->key->module,
-                    $v->key->created_at ? Carbon::parse($v->key->created_at)->toDateTimeImmutable() : null
-                )
+                null, // updatedAt - no direct mapping
+                null  // key - will be set separately
             );
         })->all();
     }
@@ -65,7 +63,8 @@ class EloquentTranslationRepository implements ITranslationRepository
                 $v->key_id,
                 $v->lang,
                 $v->value,
-                $v->created_at ? Carbon::parse($v->created_at)->toDateTimeImmutable() : null
+                $v->created_at ? Carbon::parse($v->created_at)->toDateTimeImmutable() : null,
+                null  // updatedAt
             );
         })->all();
 
@@ -74,6 +73,9 @@ class EloquentTranslationRepository implements ITranslationRepository
             $model->key,
             $model->module,
             $model->created_at ? Carbon::parse($model->created_at)->toDateTimeImmutable() : null,
+            $model->updated_at ? Carbon::parse($model->updated_at)->toDateTimeImmutable() : null,
+            $model->created_by,
+            $model->updated_by,
             $values
         );
     }
@@ -315,5 +317,76 @@ class EloquentTranslationRepository implements ITranslationRepository
             ->orderBy('module')
             ->pluck('module')
             ->toArray();
+    }
+
+    /**
+     * Bulk delete translations
+     */
+    public function bulkDeleteTranslations(array $ids, ?string $deletedBy): BulkOperationResource
+    {
+        $totalCount = count($ids);
+        $successCount = 0;
+        $failedCount = 0;
+        $errors = [];
+        $success = true;
+
+        DB::beginTransaction();
+
+        try {
+            foreach ($ids as $id) {
+                try {
+                    $translationKey = EloquentTranslationKey::with('values')
+                        ->find($id);
+
+                    if (!$translationKey) {
+                        $failedCount++;
+                        $errors[] = new BulkOperationErrorResource([
+                            'id' => (string) $id,
+                            'error' => "Translation with id {$id} not found"
+                        ]);
+                        $success = false;
+                        continue;
+                    }
+
+                    // Delete translation values
+                    foreach ($translationKey->values as $value) {
+                        $value->delete();
+                    }
+
+                    // Delete translation key
+                    $translationKey->delete();
+
+                    $successCount++;
+                } catch (\Exception $ex) {
+                    $failedCount++;
+                    $errors[] = new BulkOperationErrorResource([
+                        'id' => (string) $id,
+                        'error' => $ex->getMessage()
+                    ]);
+                    $success = false;
+                }
+            }
+
+            DB::commit();
+
+            return new BulkOperationResource([
+                'success' => $success,
+                'message' => "Processed {$totalCount} translations. Success: {$successCount}, Failed: {$failedCount}",
+                'totalCount' => $totalCount,
+                'successCount' => $successCount,
+                'failedCount' => $failedCount,
+                'errors' => $errors,
+            ]);
+        } catch (\Exception $ex) {
+            DB::rollBack();
+            return new BulkOperationResource([
+                'success' => false,
+                'message' => "Bulk operation failed: {$ex->getMessage()}",
+                'totalCount' => $totalCount,
+                'successCount' => $successCount,
+                'failedCount' => $failedCount,
+                'errors' => $errors,
+            ]);
+        }
     }
 }

@@ -727,4 +727,253 @@ class OptionsService implements IOptionsService
         // Apply pagination
         return array_slice(array_values($result), $req->skip, $req->limit);
     }
+
+     /**
+     * Bulk delete options (soft or permanent)
+     */
+    public function bulkDeleteOptions(array $ids, bool $permanent, ?string $currentUserId): array
+    {
+        $deletedBy = !empty($currentUserId) && Str::isUuid($currentUserId) ? $currentUserId : null;
+
+        // Initialize response array
+        $response = [
+            'totalCount' => count($ids),
+            'successCount' => 0,
+            'failedCount' => 0,
+            'success' => true,
+            'message' => '',
+            'errors' => []
+        ];
+
+        DB::beginTransaction();
+
+        try {
+            foreach ($ids as $id) {
+                try {
+                    $option = DB::table('options')
+                        ->where('id', $id)
+                        ->first();
+
+                    if (!$option) {
+                        $response['failedCount']++;
+                        $response['errors'][] = [
+                            'id' => $id,
+                            'error' => 'Option not found'
+                        ];
+                        $response['success'] = false;
+                        continue;
+                    }
+
+                    // Check for active children
+                    $hasActiveChildren = DB::table('options')
+                        ->where('parent_id', $id)
+                        ->whereNull('deleted_at')
+                        ->exists();
+
+                    if ($permanent) {
+                        // Permanent delete: cannot have children
+                        if ($hasActiveChildren) {
+                            $response['failedCount']++;
+                            $response['errors'][] = [
+                                'id' => $id,
+                                'error' => "Cannot permanently delete option '{$option->name}' because it has child options. Please delete all child options first."
+                            ];
+                            $response['success'] = false;
+                            continue;
+                        }
+
+                        // Also handle soft-deleted children
+                        DB::table('options')
+                            ->where('parent_id', $id)
+                            ->whereNotNull('deleted_at')
+                            ->delete();
+
+                        // Update children to remove parent reference
+                        DB::table('options')
+                            ->where('parent_id', $id)
+                            ->update([
+                                'parent_id' => null,
+                                'has_child' => false,
+                                'updated_at' => now(),
+                                'updated_by' => $deletedBy,
+                            ]);
+
+                        // Force delete the option
+                        DB::table('options')->where('id', $id)->delete();
+                    } else {
+                        // Soft delete
+                        DB::table('options')
+                            ->where('id', $id)
+                            ->update([
+                                'deleted_at' => now(),
+                                'deleted_by' => $deletedBy,
+                                'updated_at' => now(),
+                                'updated_by' => $deletedBy,
+                            ]);
+
+                        // Update parent's has_child flag
+                        if ($option->parent_id) {
+                            $remainingChildren = DB::table('options')
+                                ->where('parent_id', $option->parent_id)
+                                ->whereNull('deleted_at')
+                                ->count();
+
+                            DB::table('options')
+                                ->where('id', $option->parent_id)
+                                ->update([
+                                    'has_child' => $remainingChildren > 0,
+                                    'updated_at' => now(),
+                                    'updated_by' => $deletedBy,
+                                ]);
+                        }
+                    }
+
+                    $response['successCount']++;
+                } catch (\Exception $ex) {
+                    $response['failedCount']++;
+                    $response['errors'][] = [
+                        'id' => $id,
+                        'error' => $ex->getMessage()
+                    ];
+                    $response['success'] = false;
+                }
+            }
+
+            DB::commit();
+            $response['message'] = "Processed {$response['totalCount']} options. Success: {$response['successCount']}, Failed: {$response['failedCount']}";
+        } catch (\Exception $ex) {
+            DB::rollBack();
+            $response['success'] = false;
+            $response['message'] = "Bulk operation failed: {$ex->getMessage()}";
+        }
+
+        // Log the bulk operation
+        if ($response['successCount'] > 0) {
+            $this->userLogHelper->log(
+                actionType: 'BulkDelete',
+                detail: "Bulk " . ($permanent ? "permanent" : "soft") . " delete of {$response['successCount']} option(s). Failed: {$response['failedCount']}",
+                changes: json_encode([
+                    'ids' => $ids,
+                    'permanent' => $permanent,
+                    'successCount' => $response['successCount'],
+                    'failedCount' => $response['failedCount'],
+                    'errors' => $response['errors']
+                ]),
+                modelName: 'Option',
+                modelId: 'bulk',
+                userId: $deletedBy ?? 'system'
+            );
+        }
+
+        // Clear cache after bulk operation
+        $this->clearOptionsCache();
+
+        return $response;
+    }
+
+    /**
+     * Bulk restore soft-deleted options
+     */
+    public function bulkRestoreOptions(array $ids, ?string $currentUserId): array
+    {
+        $restoredBy = !empty($currentUserId) && Str::isUuid($currentUserId) ? $currentUserId : null;
+
+        // Initialize response array
+        $response = [
+            'totalCount' => count($ids),
+            'successCount' => 0,
+            'failedCount' => 0,
+            'success' => true,
+            'message' => '',
+            'errors' => []
+        ];
+
+        DB::beginTransaction();
+
+        try {
+            foreach ($ids as $id) {
+                try {
+                    $option = DB::table('options')
+                        ->where('id', $id)
+                        ->whereNotNull('deleted_at')
+                        ->first();
+
+                    if (!$option) {
+                        $response['failedCount']++;
+                        $response['errors'][] = [
+                            'id' => $id,
+                            'error' => 'Option not found or not deleted'
+                        ];
+                        $response['success'] = false;
+                        continue;
+                    }
+
+                    // Restore the option
+                    DB::table('options')
+                        ->where('id', $id)
+                        ->update([
+                            'deleted_at' => null,
+                            'deleted_by' => null,
+                            'updated_at' => now(),
+                            'updated_by' => $restoredBy,
+                        ]);
+
+                    // Update parent's has_child flag
+                    if ($option->parent_id) {
+                        $parent = DB::table('options')
+                            ->where('id', $option->parent_id)
+                            ->first();
+
+                        if ($parent && !$parent->has_child) {
+                            DB::table('options')
+                                ->where('id', $option->parent_id)
+                                ->update([
+                                    'has_child' => true,
+                                    'updated_at' => now(),
+                                    'updated_by' => $restoredBy,
+                                ]);
+                        }
+                    }
+
+                    $response['successCount']++;
+                } catch (\Exception $ex) {
+                    $response['failedCount']++;
+                    $response['errors'][] = [
+                        'id' => $id,
+                        'error' => $ex->getMessage()
+                    ];
+                    $response['success'] = false;
+                }
+            }
+
+            DB::commit();
+            $response['message'] = "Processed {$response['totalCount']} options. Success: {$response['successCount']}, Failed: {$response['failedCount']}";
+        } catch (\Exception $ex) {
+            DB::rollBack();
+            $response['success'] = false;
+            $response['message'] = "Bulk restore failed: {$ex->getMessage()}";
+        }
+
+        // Log the bulk operation
+        if ($response['successCount'] > 0) {
+            $this->userLogHelper->log(
+                actionType: 'BulkRestore',
+                detail: "Bulk restore of {$response['successCount']} option(s). Failed: {$response['failedCount']}",
+                changes: json_encode([
+                    'ids' => $ids,
+                    'successCount' => $response['successCount'],
+                    'failedCount' => $response['failedCount'],
+                    'errors' => $response['errors']
+                ]),
+                modelName: 'Option',
+                modelId: 'bulk',
+                userId: $restoredBy ?? 'system'
+            );
+        }
+
+        // Clear cache after bulk operation
+        $this->clearOptionsCache();
+
+        return $response;
+    }
 }

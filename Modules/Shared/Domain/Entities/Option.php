@@ -75,4 +75,17 @@ final class Option
         $this->deletedAt = null;
         $this->deletedBy = null;
     }
+
+    public function addChild(Option $child): void
+    {
+        $this->children[] = $child;
+        $child->parent = $this;
+        $this->hasChild = true;
+    }
+
+    public function removeChild(string $childId): void
+    {
+        $this->children = array_filter($this->children, fn($child) => $child->id !== $childId);
+        $this->hasChild = !empty($this->children);
+    }
 }

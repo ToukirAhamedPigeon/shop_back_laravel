@@ -63,4 +63,6 @@ interface IUserService
     public function checkDeleteEligibility(string $id): array;
 
     public function checkDeleteEligibilityAsync(string $id): array;
+    public function bulkDelete(array $ids, bool $permanent, ?string $currentUserId): array;
+    public function bulkRestore(array $ids, ?string $currentUserId): array;
 }

@@ -5,6 +5,7 @@ namespace Modules\Shared\Application\Repositories;
 use Modules\Shared\Domain\Entities\TranslationKey;
 use Modules\Shared\Domain\Entities\TranslationValue;
 use Modules\Shared\Application\Requests\Translation\TranslationFilterRequest;
+use Modules\Shared\Application\Resources\Common\BulkOperationResource;
 use Illuminate\Database\Eloquent\Collection;
 
 interface ITranslationRepository
@@ -103,4 +104,13 @@ interface ITranslationRepository
      * @return string[]
      */
     public function getDistinctModules(): array;
+
+    /**
+     * Bulk delete translations
+     *
+     * @param array<int> $ids
+     * @param string|null $deletedBy
+     * @return BulkOperationResource
+     */
+    public function bulkDeleteTranslations(array $ids, ?string $deletedBy): BulkOperationResource;
 }

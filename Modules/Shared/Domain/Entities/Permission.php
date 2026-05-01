@@ -72,4 +72,12 @@ final class Permission
         $this->isDeleted = false;
         $this->deletedAt = null;
     }
+
+    public function update(string $name, string $guardName, bool $isActive): void
+    {
+        $this->name = $name;
+        $this->guardName = $guardName;
+        $this->isActive = $isActive;
+        $this->updatedAt = new DateTimeImmutable();
+    }
 }

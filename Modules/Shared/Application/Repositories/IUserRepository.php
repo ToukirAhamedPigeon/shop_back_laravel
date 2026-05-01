@@ -61,4 +61,6 @@ interface IUserRepository
     public function getDistinctCreatorsAsync(SelectOptionRequest $req): array;
     public function getDistinctUpdatersAsync(SelectOptionRequest $req): array;
     public function getDistinctDateTypesAsync(SelectOptionRequest $req): array;
+    public function bulkDelete(array $ids, bool $permanent, ?string $deletedBy = null): array;
+    public function bulkRestore(array $ids, ?string $restoredBy = null): array;
 }

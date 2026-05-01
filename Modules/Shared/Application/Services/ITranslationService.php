@@ -5,6 +5,7 @@ namespace Modules\Shared\Application\Services;
 use Modules\Shared\Application\Requests\Translation\TranslationFilterRequest;
 use Modules\Shared\Application\Requests\Translation\CreateTranslationRequest;
 use Modules\Shared\Application\Requests\Translation\UpdateTranslationRequest;
+use Modules\Shared\Application\Resources\Common\BulkOperationResource;
 
 interface ITranslationService
 {
@@ -77,4 +78,13 @@ interface ITranslationService
      * @return array{value: string, label: string}[]
      */
     public function getModulesForOptions(): array;
+
+    /**
+     * Bulk delete translations
+     *
+     * @param array<int> $ids
+     * @param string|null $deletedBy
+     * @return BulkOperationResource
+     */
+     public function bulkDeleteTranslations(array $ids, ?string $deletedBy): BulkOperationResource;
 }

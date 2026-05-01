@@ -18,18 +18,8 @@ class EloquentOption extends Model
     public $timestamps = true;
 
     protected $fillable = [
-        'id',
-        'name',
-        'parent_id',
-        'has_child',
-        'is_active',
-        'is_deleted',
-        'created_by',
-        'updated_by',
-        'deleted_by',
-        'created_at',
-        'updated_at',
-        'deleted_at',
+        'id', 'name', 'parent_id', 'has_child', 'is_active', 'is_deleted',
+        'created_by', 'updated_by', 'deleted_by', 'created_at', 'updated_at', 'deleted_at',
     ];
 
     protected $casts = [
@@ -45,12 +35,12 @@ class EloquentOption extends Model
 
     public function parent(): BelongsTo
     {
-        return $this->belongsTo(EloquentOption::class, 'parent_id', 'id');
+        return $this->belongsTo(self::class, 'parent_id', 'id');
     }
 
     public function children(): HasMany
     {
-        return $this->hasMany(EloquentOption::class, 'parent_id', 'id');
+        return $this->hasMany(self::class, 'parent_id', 'id');
     }
 
     public function createdByUser(): BelongsTo

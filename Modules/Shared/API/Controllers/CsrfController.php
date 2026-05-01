@@ -21,27 +21,59 @@ class CsrfController extends Controller
         $csrfToken = csrf_token();
 
         // For enhanced security, you can also refresh the token
-        // This is optional but matches .NET's GetAndStoreTokens behavior
         if (App::environment('production')) {
             session()->regenerateToken();
             $csrfToken = session()->token();
         }
 
-        return response()->json([
+        $response = response()->json([
             'csrfToken' => $csrfToken
         ]);
+
+        // Add CORS headers explicitly
+        $origin = request()->header('Origin');
+        $allowedOrigins = [
+            'http://localhost:5173',
+            'http://localhost:5174',
+            'http://localhost:4200',
+            'http://localhost:3000',
+        ];
+
+        if (in_array($origin, $allowedOrigins)) {
+            $response->headers->set('Access-Control-Allow-Origin', $origin);
+            $response->headers->set('Access-Control-Allow-Credentials', 'true');
+            $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+            $response->headers->set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-CSRF-TOKEN, Accept');
+            $response->headers->set('Access-Control-Expose-Headers', 'X-CSRF-TOKEN');
+        }
+
+        return $response;
     }
 
     /**
-     * Alternative method that refreshes the token (matches .NET behavior more closely)
+     * Alternative method that refreshes the token
      */
     public function refreshToken(): JsonResponse
     {
-        // Regenerate CSRF token (like .NET's GetAndStoreTokens)
         session()->regenerateToken();
 
-        return response()->json([
+        $response = response()->json([
             'csrfToken' => session()->token()
         ]);
+
+        $origin = request()->header('Origin');
+        $allowedOrigins = [
+            'http://localhost:5173',
+            'http://localhost:5174',
+            'http://localhost:4200',
+            'http://localhost:3000',
+        ];
+
+        if (in_array($origin, $allowedOrigins)) {
+            $response->headers->set('Access-Control-Allow-Origin', $origin);
+            $response->headers->set('Access-Control-Allow-Credentials', 'true');
+        }
+
+        return $response;
     }
 }

@@ -10,6 +10,8 @@ use Illuminate\Http\Request;
 use Modules\Shared\Application\Requests\Option\OptionFilterRequest;
 use Modules\Shared\Application\Requests\Option\CreateOptionRequest;
 use Modules\Shared\Application\Requests\Option\UpdateOptionRequest;
+use Modules\Shared\Application\Requests\Common\BulkOperationRequest;
+use Modules\Shared\Application\Resources\Common\BulkOperationResource;
 use Illuminate\Support\Facades\Auth;
 
 class OptionsController extends Controller
@@ -20,7 +22,6 @@ class OptionsController extends Controller
     {
         $this->service = $service;
     }
-
     /**
      * Generic select options endpoint.
      *
@@ -172,5 +173,91 @@ class OptionsController extends Controller
     {
         $options = $this->service->getParentOptions($request);
         return response()->json($options);
+    }
+
+    /**
+     * Bulk delete options (soft or permanent)
+     *
+     * POST /api/options/bulk-delete
+     */
+    public function bulkDelete(BulkOperationRequest $request): JsonResponse
+    {
+        // Validate GUIDs
+        $invalidIds = [];
+        $validIds = [];
+
+        foreach ($request->ids as $id) {
+            if ($this->isValidUuid($id)) {
+                $validIds[] = $id;
+            } else {
+                $invalidIds[] = $id;
+            }
+        }
+
+        if (!empty($invalidIds)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid GUID format for IDs: ' . implode(', ', $invalidIds)
+            ], 400);
+        }
+
+        $currentUserId = Auth::id();
+        $result = $this->service->bulkDeleteOptions($validIds, $request->permanent, $currentUserId);
+
+        // Pass the result array directly to the resource
+        $resource = new BulkOperationResource($result);
+
+        if (!$result['success']) {
+            return response()->json($resource, 400);
+        }
+
+        return response()->json($resource);
+    }
+
+    /**
+     * Bulk restore soft-deleted options
+     *
+     * POST /api/options/bulk-restore
+     */
+    public function bulkRestore(BulkOperationRequest $request): JsonResponse
+    {
+        // Validate GUIDs
+        $invalidIds = [];
+        $validIds = [];
+
+        foreach ($request->ids as $id) {
+            if ($this->isValidUuid($id)) {
+                $validIds[] = $id;
+            } else {
+                $invalidIds[] = $id;
+            }
+        }
+
+        if (!empty($invalidIds)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid GUID format for IDs: ' . implode(', ', $invalidIds)
+            ], 400);
+        }
+
+        $currentUserId = Auth::id();
+        $result = $this->service->bulkRestoreOptions($validIds, $currentUserId);
+
+        // Pass the result array directly to the resource
+        $resource = new BulkOperationResource($result);
+
+        if (!$result['success']) {
+            return response()->json($resource, 400);
+        }
+
+        return response()->json($resource);
+    }
+
+    /**
+     * Check if string is valid UUID
+     */
+    private function isValidUuid(string $uuid): bool
+    {
+        return preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $uuid) === 1;
     }
 }

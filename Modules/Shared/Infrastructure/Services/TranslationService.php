@@ -8,6 +8,7 @@ use Modules\Shared\Application\Requests\Translation\TranslationFilterRequest;
 use Modules\Shared\Application\Requests\Translation\CreateTranslationRequest;
 use Modules\Shared\Application\Requests\Translation\UpdateTranslationRequest;
 use Modules\Shared\Application\Resources\Translation\TranslationResource;
+use Modules\Shared\Application\Resources\Common\BulkOperationResource;
 use Modules\Shared\Infrastructure\Models\EloquentUser;
 use Modules\Shared\Infrastructure\Helpers\UserLogHelper;
 use Illuminate\Support\Facades\Redis;
@@ -344,5 +345,47 @@ class TranslationService implements ITranslationService
 
         // Also clear the modules list cache
         Redis::del($this->getAllModulesCacheKey());
+    }
+
+    /**
+     * Bulk delete translations
+     */
+    public function bulkDeleteTranslations(array $ids, ?string $deletedBy): BulkOperationResource
+    {
+        // Get modules for affected translations to clear cache
+        $affectedModules = [];
+        foreach ($ids as $id) {
+            $translation = $this->repo->getTranslationKeyWithValues($id);
+            if ($translation) {
+                $affectedModules[] = $translation->module;
+            }
+        }
+        $affectedModules = array_unique($affectedModules);
+
+        $result = $this->repo->bulkDeleteTranslations($ids, $deletedBy);
+
+        // Log the bulk operation
+        if ($result->successCount > 0) {
+            $this->userLogHelper->log(
+                actionType: 'BulkDelete',
+                detail: "Bulk delete of {$result->successCount} translation(s). Failed: {$result->failedCount}",
+                changes: json_encode([
+                    'ids' => $ids,
+                    'successCount' => $result->successCount,
+                    'failedCount' => $result->failedCount,
+                    'errors' => $result->errors
+                ]),
+                modelName: 'Translation',
+                modelId: 'bulk',
+                userId: $deletedBy
+            );
+        }
+
+        // Clear cache for affected modules
+        foreach ($affectedModules as $module) {
+            $this->clearCacheForModule($module);
+        }
+
+        return $result;
     }
 }

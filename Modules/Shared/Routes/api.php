@@ -22,8 +22,29 @@ use Modules\Shared\API\Controllers\UserTableCombinationController;
 | CSRF (Public)
 |--------------------------------------------------------------------------
 */
-Route::prefix('csrf')->middleware('web')->group(function () {
+Route::prefix('csrf')->group(function () {
     Route::get('/token', [CsrfController::class, 'getToken'])->name('csrf.token');
+});
+
+Route::options('/csrf/token', function () {
+    $origin = request()->header('Origin');
+    $allowedOrigins = [
+        'http://localhost:5173',
+        'http://localhost:5174',
+        'http://localhost:4200',
+        'http://localhost:3000',
+    ];
+
+    if (in_array($origin, $allowedOrigins)) {
+        return response('', 200)
+            ->header('Access-Control-Allow-Origin', $origin)
+            ->header('Access-Control-Allow-Credentials', 'true')
+            ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
+            ->header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-CSRF-TOKEN, Accept')
+            ->header('Access-Control-Max-Age', '86400');
+    }
+
+    return response('', 200);
 });
 
 /*
@@ -171,6 +192,12 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('/{id}', [UserController::class, 'deleteUser'])->name('users.delete')->middleware('permission:any,delete-admin-users');
         Route::post('/{id}/restore', [UserController::class, 'restoreUser'])->name('users.restore')->middleware('permission:any,restore-admin-users');
         Route::get('/{id}/delete-info', [UserController::class, 'getDeleteInfo'])->name('users.delete-info')->middleware('permission:any,restore-admin-users');
+        Route::post('/bulk-delete', [UserController::class, 'bulkDelete'])
+        ->name('users.bulk-delete')
+        ->middleware('permission:any,delete-admin-users');
+        Route::post('/bulk-restore', [UserController::class, 'bulkRestore'])
+            ->name('users.bulk-restore')
+            ->middleware('permission:any,restore-admin-users');
     });
 
     /*
@@ -236,6 +263,11 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/modules', [TranslationsController::class, 'getModules'])
             ->name('translations.modules')
             ->middleware('permission:any,read-admin-translations');
+
+        // NEW: Bulk delete route
+        Route::post('/bulk-delete', [TranslationsController::class, 'bulkDelete'])
+            ->name('translations.bulk-delete')
+            ->middleware('permission:any,delete-admin-translations');
     });
 
     Route::prefix('options')->group(function () {
@@ -274,6 +306,15 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/parents', [OptionsController::class, 'getParentOptions'])
             ->name('options.parents')
             ->middleware('permission:any,read-admin-options');
+
+        // NEW: Bulk operations routes
+        Route::post('/bulk-delete', [OptionsController::class, 'bulkDelete'])
+            ->name('options.bulk-delete')
+            ->middleware('permission:any,delete-admin-options');
+
+        Route::post('/bulk-restore', [OptionsController::class, 'bulkRestore'])
+            ->name('options.bulk-restore')
+            ->middleware('permission:any,update-admin-options');
     });
     // });
 });

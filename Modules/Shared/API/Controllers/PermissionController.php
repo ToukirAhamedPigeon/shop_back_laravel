@@ -9,6 +9,7 @@ use Modules\Shared\Application\Services\IPermissionService;
 use Modules\Shared\Application\Requests\Permission\PermissionFilterRequest;
 use Modules\Shared\Application\Requests\Permission\CreatePermissionRequest;
 use Modules\Shared\Application\Requests\Permission\UpdatePermissionRequest;
+use Modules\Shared\Application\Requests\Common\BulkOperationRequest;
 use Illuminate\Support\Facades\Auth;
 
 class PermissionController extends Controller
@@ -143,5 +144,54 @@ class PermissionController extends Controller
             'canBePermanent' => $result['canBePermanent'],
             'message' => $result['message']
         ]);
+    }
+     /**
+     * Bulk delete permissions (soft or permanent)
+     *
+     * POST /api/permissions/bulk-delete
+     */
+    public function bulkDelete(BulkOperationRequest $request): JsonResponse
+    {
+        // Validate and convert IDs
+        $validation = $request->validateIds();
+
+        if (!$validation['isValid']) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid UUID format for IDs: ' . implode(', ', $validation['invalidIds'])
+            ], 400);
+        }
+
+        $guids = $request->getGuids();
+        $currentUserId = Auth::id();
+
+        $result = $this->service->bulkDeletePermissions($guids, $request->permanent, $currentUserId);
+
+        return response()->json($result);
+    }
+
+    /**
+     * Bulk restore soft-deleted permissions
+     *
+     * POST /api/permissions/bulk-restore
+     */
+    public function bulkRestore(BulkOperationRequest $request): JsonResponse
+    {
+        // Validate and convert IDs
+        $validation = $request->validateIds();
+
+        if (!$validation['isValid']) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid UUID format for IDs: ' . implode(', ', $validation['invalidIds'])
+            ], 400);
+        }
+
+        $guids = $request->getGuids();
+        $currentUserId = Auth::id();
+
+        $result = $this->service->bulkRestorePermissions($guids, $currentUserId);
+
+        return response()->json($result);
     }
 }

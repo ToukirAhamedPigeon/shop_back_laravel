@@ -22,4 +22,8 @@ interface IOptionsService
     public function restoreOption(string $id, ?string $currentUserId): array;
     public function checkDeleteEligibility(string $id): array;
     public function getParentOptions(SelectOptionRequest $request): array;
+
+    // Bulk operations - return array for Resource
+    public function bulkDeleteOptions(array $ids, bool $permanent, ?string $currentUserId): array;
+    public function bulkRestoreOptions(array $ids, ?string $currentUserId): array;
 }

@@ -5,6 +5,7 @@ namespace Modules\Shared\Application\Services;
 use Modules\Shared\Application\Requests\Role\RoleFilterRequest;
 use Modules\Shared\Application\Requests\Role\CreateRoleRequest;
 use Modules\Shared\Application\Requests\Role\UpdateRoleRequest;
+use Modules\Shared\Application\Resources\Common\BulkOperationResource;
 
 interface IRoleService
 {
@@ -16,4 +17,15 @@ interface IRoleService
     public function deleteRole(string $id, bool $permanent, ?string $currentUserId): array;
     public function restoreRole(string $id, ?string $currentUserId): array;
     public function checkDeleteEligibility(string $id): array;
+    // ==================== BULK OPERATIONS ====================
+
+    /**
+     * Bulk delete roles (soft or permanent)
+     */
+    public function bulkDeleteRoles(array $ids, bool $permanent, ?string $currentUserId): BulkOperationResource;
+
+    /**
+     * Bulk restore roles
+     */
+    public function bulkRestoreRoles(array $ids, ?string $currentUserId): BulkOperationResource;
 }

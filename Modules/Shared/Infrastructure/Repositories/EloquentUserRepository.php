@@ -13,6 +13,7 @@ use Modules\Shared\Infrastructure\Models\EloquentRefreshToken;
 use Modules\Shared\Infrastructure\Models\EloquentPasswordReset;
 use Modules\Shared\Application\Resources\User\UserResource;
 use Modules\Shared\Application\Resources\Common\SelectOptionResource;
+use Modules\Shared\Infrastructure\Helpers\FileHelper; // Add this import
 use DateTimeImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -327,6 +328,148 @@ class EloquentUserRepository implements IUserRepository
     public function saveChangesAsync(): void
     {
         $this->saveChanges();
+    }
+
+    /**
+     * Bulk delete users (soft or permanent)
+     */
+    public function bulkDelete(array $ids, bool $permanent, ?string $deletedBy = null): array
+    {
+        $response = [
+            'totalCount' => count($ids),
+            'successCount' => 0,
+            'failedCount' => 0,
+            'success' => true,
+            'errors' => []
+        ];
+
+        DB::beginTransaction();
+
+        try {
+            foreach ($ids as $id) {
+                try {
+                    $user = EloquentUser::withoutGlobalScopes()->find($id);
+
+                    if (!$user) {
+                        $response['failedCount']++;
+                        $response['errors'][] = ['id' => $id, 'error' => 'User not found'];
+                        $response['success'] = false;
+                        continue;
+                    }
+
+                    if ($permanent) {
+                        // Check if user has related records
+                        if ($this->hasRelatedRecords($id)) {
+                            $response['failedCount']++;
+                            $response['errors'][] = [
+                                'id' => $id,
+                                'error' => 'Cannot permanently delete user with related records'
+                            ];
+                            $response['success'] = false;
+                            continue;
+                        }
+
+                        // Delete profile image
+                        if ($user->profile_image) {
+                            FileHelper::deleteFile($user->profile_image);
+                        }
+
+                        // Delete related records
+                        DB::table('mail')->where('created_by', $id)->delete();
+                        DB::table('mail_verifications')->where('user_id', $id)->delete();
+                        DB::table('model_roles')->where('model_id', $id)->where('model_name', 'User')->delete();
+                        DB::table('model_permissions')->where('model_id', $id)->where('model_name', 'User')->delete();
+                        DB::table('password_reset')->where('user_id', $id)->delete();
+                        DB::table('refresh_tokens')->where('user_id', $id)->delete();
+                        DB::table('user_logs')->where('created_by', $id)->delete();
+
+                        // Delete user
+                        $user->forceDelete();
+                    } else {
+                        // Soft delete
+                        $user->is_deleted = true;
+                        $user->deleted_at = now();
+                        $user->updated_by = $deletedBy;
+                        $user->updated_at = now();
+                        $user->save();
+                    }
+
+                    $response['successCount']++;
+                } catch (\Exception $e) {
+                    $response['failedCount']++;
+                    $response['errors'][] = ['id' => $id, 'error' => $e->getMessage()];
+                    $response['success'] = false;
+                }
+            }
+
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $response['success'] = false;
+            $response['message'] = "Bulk operation failed: {$e->getMessage()}";
+            return $response;
+        }
+
+        $response['message'] = "Processed {$response['totalCount']} users. Success: {$response['successCount']}, Failed: {$response['failedCount']}";
+
+        return $response;
+    }
+
+    /**
+     * Bulk restore soft-deleted users
+     */
+    public function bulkRestore(array $ids, ?string $restoredBy = null): array
+    {
+        $response = [
+            'totalCount' => count($ids),
+            'successCount' => 0,
+            'failedCount' => 0,
+            'success' => true,
+            'errors' => []
+        ];
+
+        DB::beginTransaction();
+
+        try {
+            foreach ($ids as $id) {
+                try {
+                    $user = EloquentUser::withoutGlobalScopes()
+                        ->where('id', $id)
+                        ->where('is_deleted', true)
+                        ->first();
+
+                    if (!$user) {
+                        $response['failedCount']++;
+                        $response['errors'][] = ['id' => $id, 'error' => 'User not found or not deleted'];
+                        $response['success'] = false;
+                        continue;
+                    }
+
+                    $user->is_deleted = false;
+                    $user->deleted_at = null;
+                    $user->updated_by = $restoredBy;
+                    $user->updated_at = now();
+                    $user->save();
+
+                    $response['successCount']++;
+                } catch (\Exception $e) {
+                    $response['failedCount']++;
+                    $response['errors'][] = ['id' => $id, 'error' => $e->getMessage()];
+                    $response['success'] = false;
+                }
+            }
+
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $response['success'] = false;
+            $response['message'] = "Bulk restore failed: {$e->getMessage()}";
+            return $response;
+        }
+
+        $response['message'] = "Processed {$response['totalCount']} users. Success: {$response['successCount']}, Failed: {$response['failedCount']}";
+
+        return $response;
     }
 
     // ==================== ACCESS TOKEN MANAGEMENT ====================

@@ -8,6 +8,7 @@ use Modules\Shared\Application\Requests\Permission\PermissionFilterRequest;
 use Modules\Shared\Application\Requests\Permission\CreatePermissionRequest;
 use Modules\Shared\Application\Requests\Permission\UpdatePermissionRequest;
 use Modules\Shared\Application\Resources\Permission\PermissionResource;
+use Modules\Shared\Application\Resources\Common\BulkOperationResource;
 use Modules\Shared\Domain\Entities\Permission;
 use Modules\Shared\Infrastructure\Helpers\UserLogHelper;
 use Illuminate\Support\Facades\DB;
@@ -369,5 +370,65 @@ class PermissionService implements IPermissionService
             : 'Permission must be soft deleted due to existing related records';
 
         return ['success' => true, 'message' => $message, 'canBePermanent' => $canBePermanent];
+    }
+     // ==================== BULK OPERATIONS ====================
+
+    public function bulkDeletePermissions(array $ids, bool $permanent, ?string $currentUserId): BulkOperationResource
+    {
+        $deletedBy = null;
+        if (!empty($currentUserId) && \Illuminate\Support\Str::isUuid($currentUserId)) {
+            $deletedBy = $currentUserId;
+        }
+
+        $result = $this->repo->bulkDeletePermissions($ids, $permanent, $deletedBy);
+
+        // Log the bulk operation
+        if ($result['successCount'] > 0) {
+            $this->userLogHelper->log(
+                actionType: 'BulkDelete',
+                detail: "Bulk " . ($permanent ? "permanent" : "soft") . " delete of {$result['successCount']} permission(s). Failed: {$result['failedCount']}",
+                changes: json_encode([
+                    'ids' => $ids,
+                    'permanent' => $permanent,
+                    'successCount' => $result['successCount'],
+                    'failedCount' => $result['failedCount'],
+                    'errors' => $result['errors']
+                ]),
+                modelName: 'Permission',
+                modelId: 'bulk',
+                userId: $deletedBy ?? ''
+            );
+        }
+
+        return new BulkOperationResource($result);
+    }
+
+    public function bulkRestorePermissions(array $ids, ?string $currentUserId): BulkOperationResource
+    {
+        $restoredBy = null;
+        if (!empty($currentUserId) && \Illuminate\Support\Str::isUuid($currentUserId)) {
+            $restoredBy = $currentUserId;
+        }
+
+        $result = $this->repo->bulkRestorePermissions($ids, $restoredBy);
+
+        // Log the bulk operation
+        if ($result['successCount'] > 0) {
+            $this->userLogHelper->log(
+                actionType: 'BulkRestore',
+                detail: "Bulk restore of {$result['successCount']} permission(s). Failed: {$result['failedCount']}",
+                changes: json_encode([
+                    'ids' => $ids,
+                    'successCount' => $result['successCount'],
+                    'failedCount' => $result['failedCount'],
+                    'errors' => $result['errors']
+                ]),
+                modelName: 'Permission',
+                modelId: 'bulk',
+                userId: $restoredBy ?? ''
+            );
+        }
+
+        return new BulkOperationResource($result);
     }
 }

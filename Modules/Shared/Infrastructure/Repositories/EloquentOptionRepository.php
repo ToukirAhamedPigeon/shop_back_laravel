@@ -5,12 +5,11 @@ namespace Modules\Shared\Infrastructure\Repositories;
 use Modules\Shared\Application\Repositories\IOptionRepository;
 use Modules\Shared\Domain\Entities\Option as OptionEntity;
 use Modules\Shared\Infrastructure\Models\EloquentOption;
-use Modules\Shared\Application\Requests\Option\OptionFilterRequest;
 use Modules\Shared\Application\Resources\Option\OptionResource;
+use Modules\Shared\Application\Requests\Option\OptionFilterRequest;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
-use Carbon\Carbon;
 use DateTimeImmutable;
 
 class EloquentOptionRepository implements IOptionRepository
@@ -130,6 +129,12 @@ class EloquentOptionRepository implements IOptionRepository
         return $model ? $this->mapToEntity($model) : null;
     }
 
+    public function getOptionByIdIncludingDeleted(string $id): ?OptionEntity
+    {
+        $model = EloquentOption::withTrashed()->with('parent')->find($id);
+        return $model ? $this->mapToEntity($model) : null;
+    }
+
     public function optionExists(string $name, ?string $parentId, ?string $ignoreId = null): bool
     {
         $query = EloquentOption::where('name', $name)
@@ -196,12 +201,13 @@ class EloquentOptionRepository implements IOptionRepository
         }
     }
 
-    public function restoreOption(string $id): void
+    public function restoreOption(string $id, ?string $restoredBy = null): void
     {
         $model = EloquentOption::withTrashed()->find($id);
         if ($model) {
             $model->restore();
             $model->deleted_by = null;
+            $model->updated_by = $restoredBy;
             $model->save();
         }
     }
@@ -253,5 +259,167 @@ class EloquentOptionRepository implements IOptionRepository
             updatedBy: $model->updated_by,
             deletedBy: $model->deleted_by
         );
+    }
+
+    public function bulkDeleteOptions(array $ids, bool $permanent, ?string $deletedBy): array
+    {
+        $response = [
+            'totalCount' => count($ids),
+            'successCount' => 0,
+            'failedCount' => 0,
+            'success' => true,
+            'message' => '',
+            'errors' => []
+        ];
+
+        DB::beginTransaction();
+
+        try {
+            foreach ($ids as $id) {
+                try {
+                    $option = EloquentOption::withTrashed()
+                        ->with('children')
+                        ->find($id);
+
+                    if (!$option) {
+                        $response['failedCount']++;
+                        $response['errors'][] = [
+                            'id' => $id,
+                            'error' => 'Option not found'
+                        ];
+                        $response['success'] = false;
+                        continue;
+                    }
+
+                    // Check for active children
+                    $hasActiveChildren = $option->children->filter(fn($c) => !$c->trashed())->count() > 0;
+
+                    if ($permanent) {
+                        // Permanent delete: cannot have children
+                        if ($hasActiveChildren) {
+                            $response['failedCount']++;
+                            $response['errors'][] = [
+                                'id' => $id,
+                                'error' => "Cannot permanently delete option '{$option->name}' because it has child options. Please delete all child options first."
+                            ];
+                            $response['success'] = false;
+                            continue;
+                        }
+
+                        // Also handle soft-deleted children
+                        $softDeletedChildren = $option->children->filter(fn($c) => $c->trashed());
+                        foreach ($softDeletedChildren as $child) {
+                            $child->forceDelete();
+                        }
+
+                        $option->forceDelete();
+                    } else {
+                        // Soft delete
+                        $option->deleted_by = $deletedBy;
+                        $option->save();
+                        $option->delete();
+
+                        // Update parent's has_child flag
+                        if ($option->parent_id) {
+                            $parent = EloquentOption::find($option->parent_id);
+                            if ($parent) {
+                                $remainingChildren = EloquentOption::where('parent_id', $parent->id)
+                                    ->whereNull('deleted_at')
+                                    ->count();
+                                $parent->has_child = $remainingChildren > 0;
+                                $parent->updated_by = $deletedBy;
+                                $parent->save();
+                            }
+                        }
+                    }
+
+                    $response['successCount']++;
+                } catch (\Exception $ex) {
+                    $response['failedCount']++;
+                    $response['errors'][] = [
+                        'id' => $id,
+                        'error' => $ex->getMessage()
+                    ];
+                    $response['success'] = false;
+                }
+            }
+
+            DB::commit();
+            $response['message'] = "Processed {$response['totalCount']} options. Success: {$response['successCount']}, Failed: {$response['failedCount']}";
+        } catch (\Exception $ex) {
+            DB::rollBack();
+            $response['success'] = false;
+            $response['message'] = "Bulk operation failed: {$ex->getMessage()}";
+        }
+
+        return $response;
+    }
+
+    public function bulkRestoreOptions(array $ids, ?string $restoredBy): array
+    {
+        $response = [
+            'totalCount' => count($ids),
+            'successCount' => 0,
+            'failedCount' => 0,
+            'success' => true,
+            'message' => '',
+            'errors' => []
+        ];
+
+        DB::beginTransaction();
+
+        try {
+            foreach ($ids as $id) {
+                try {
+                    $option = EloquentOption::withTrashed()
+                        ->where('id', $id)
+                        ->whereNotNull('deleted_at')
+                        ->first();
+
+                    if (!$option) {
+                        $response['failedCount']++;
+                        $response['errors'][] = [
+                            'id' => $id,
+                            'error' => 'Option not found or not deleted'
+                        ];
+                        $response['success'] = false;
+                        continue;
+                    }
+
+                    $option->restore();
+                    $option->deleted_by = null;
+                    $option->updated_by = $restoredBy;
+                    $option->save();
+
+                    // Update parent's has_child flag
+                    if ($option->parent_id) {
+                        $parent = EloquentOption::find($option->parent_id);
+                        if ($parent && !$parent->has_child) {
+                            $parent->has_child = true;
+                            $parent->updated_by = $restoredBy;
+                            $parent->save();
+                        }
+                    }
+
+                    $response['successCount']++;
+                } catch (\Exception $ex) {
+                    $response['failedCount']++;
+                    $response['errors'][] = [
+                        'id' => $id,
+                        'error' => $ex->getMessage()
+                    ];
+                    $response['success'] = false;
+                }
+            }
+
+            DB::commit();
+            $response['message'] = "Processed {$response['totalCount']} options. Success: {$response['successCount']}, Failed: {$response['failedCount']}";
+        } catch (\Exception $ex) {
+            DB::rollBack();
+            $response['success'] = false;
+            $response['message'] = "Bulk restore failed: {$ex->getMessage()}";
+        }
+
+        return $response;
     }
 }

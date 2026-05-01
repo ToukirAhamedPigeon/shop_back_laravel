@@ -991,4 +991,247 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
                 : null
         );
     }
+    // ==================== BULK OPERATIONS FOR ROLES ====================
+
+    public function bulkDeleteRoles(array $ids, bool $permanent, ?string $deletedBy): array
+    {
+        $response = [
+            'totalCount' => count($ids),
+            'successCount' => 0,
+            'failedCount' => 0,
+            'success' => true,
+            'errors' => []
+        ];
+
+        DB::beginTransaction();
+
+        try {
+            foreach ($ids as $id) {
+                try {
+                    $model = EloquentRole::where('id', $id)->first();
+
+                    if (!$model) {
+                        $response['failedCount']++;
+                        $response['errors'][] = [
+                            'id' => $id,
+                            'error' => 'Role not found'
+                        ];
+                        $response['success'] = false;
+                        continue;
+                    }
+
+                    if ($permanent) {
+                        // Delete all related records first
+                        EloquentRolePermission::where('role_id', $id)->delete();
+                        DB::table('model_roles')->where('role_id', $id)->delete();
+                        $model->forceDelete();
+                    } else {
+                        // Soft delete
+                        $model->is_deleted = true;
+                        $model->deleted_at = now();
+                        $model->updated_at = now();
+                        $model->updated_by = $deletedBy;
+                        $model->save();
+                    }
+
+                    $response['successCount']++;
+                } catch (\Exception $ex) {
+                    $response['failedCount']++;
+                    $response['errors'][] = [
+                        'id' => $id,
+                        'error' => $ex->getMessage()
+                    ];
+                    $response['success'] = false;
+                }
+            }
+
+            DB::commit();
+
+            $response['message'] = "Processed {$response['totalCount']} roles. Success: {$response['successCount']}, Failed: {$response['failedCount']}";
+        } catch (\Exception $ex) {
+            DB::rollBack();
+            $response['success'] = false;
+            $response['message'] = "Bulk operation failed: " . $ex->getMessage();
+        }
+
+        return $response;
+    }
+
+    public function bulkRestoreRoles(array $ids, ?string $restoredBy): array
+    {
+        $response = [
+            'totalCount' => count($ids),
+            'successCount' => 0,
+            'failedCount' => 0,
+            'success' => true,
+            'errors' => []
+        ];
+
+        DB::beginTransaction();
+
+        try {
+            foreach ($ids as $id) {
+                try {
+                    $model = EloquentRole::where('id', $id)->where('is_deleted', true)->first();
+
+                    if (!$model) {
+                        $response['failedCount']++;
+                        $response['errors'][] = [
+                            'id' => $id,
+                            'error' => 'Role not found or not deleted'
+                        ];
+                        $response['success'] = false;
+                        continue;
+                    }
+
+                    $model->is_deleted = false;
+                    $model->deleted_at = null;
+                    $model->updated_at = now();
+                    $model->updated_by = $restoredBy;
+                    $model->save();
+
+                    $response['successCount']++;
+                } catch (\Exception $ex) {
+                    $response['failedCount']++;
+                    $response['errors'][] = [
+                        'id' => $id,
+                        'error' => $ex->getMessage()
+                    ];
+                    $response['success'] = false;
+                }
+            }
+
+            DB::commit();
+
+            $response['message'] = "Processed {$response['totalCount']} roles. Success: {$response['successCount']}, Failed: {$response['failedCount']}";
+        } catch (\Exception $ex) {
+            DB::rollBack();
+            $response['success'] = false;
+            $response['message'] = "Bulk restore failed: " . $ex->getMessage();
+        }
+
+        return $response;
+    }
+
+    // ==================== BULK OPERATIONS FOR PERMISSIONS ====================
+
+    public function bulkDeletePermissions(array $ids, bool $permanent, ?string $deletedBy): array
+    {
+        $response = [
+            'totalCount' => count($ids),
+            'successCount' => 0,
+            'failedCount' => 0,
+            'success' => true,
+            'errors' => []
+        ];
+
+        DB::beginTransaction();
+
+        try {
+            foreach ($ids as $id) {
+                try {
+                    $model = EloquentPermission::where('id', $id)->first();
+
+                    if (!$model) {
+                        $response['failedCount']++;
+                        $response['errors'][] = [
+                            'id' => $id,
+                            'error' => 'Permission not found'
+                        ];
+                        $response['success'] = false;
+                        continue;
+                    }
+
+                    if ($permanent) {
+                        // Delete all related records first
+                        EloquentRolePermission::where('permission_id', $id)->delete();
+                        DB::table('model_permissions')->where('permission_id', $id)->delete();
+                        $model->forceDelete();
+                    } else {
+                        // Soft delete
+                        $model->is_deleted = true;
+                        $model->deleted_at = now();
+                        $model->updated_at = now();
+                        $model->updated_by = $deletedBy;
+                        $model->save();
+                    }
+
+                    $response['successCount']++;
+                } catch (\Exception $ex) {
+                    $response['failedCount']++;
+                    $response['errors'][] = [
+                        'id' => $id,
+                        'error' => $ex->getMessage()
+                    ];
+                    $response['success'] = false;
+                }
+            }
+
+            DB::commit();
+
+            $response['message'] = "Processed {$response['totalCount']} permissions. Success: {$response['successCount']}, Failed: {$response['failedCount']}";
+        } catch (\Exception $ex) {
+            DB::rollBack();
+            $response['success'] = false;
+            $response['message'] = "Bulk operation failed: " . $ex->getMessage();
+        }
+
+        return $response;
+    }
+
+    public function bulkRestorePermissions(array $ids, ?string $restoredBy): array
+    {
+        $response = [
+            'totalCount' => count($ids),
+            'successCount' => 0,
+            'failedCount' => 0,
+            'success' => true,
+            'errors' => []
+        ];
+
+        DB::beginTransaction();
+
+        try {
+            foreach ($ids as $id) {
+                try {
+                    $model = EloquentPermission::where('id', $id)->where('is_deleted', true)->first();
+
+                    if (!$model) {
+                        $response['failedCount']++;
+                        $response['errors'][] = [
+                            'id' => $id,
+                            'error' => 'Permission not found or not deleted'
+                        ];
+                        $response['success'] = false;
+                        continue;
+                    }
+
+                    $model->is_deleted = false;
+                    $model->deleted_at = null;
+                    $model->updated_at = now();
+                    $model->updated_by = $restoredBy;
+                    $model->save();
+
+                    $response['successCount']++;
+                } catch (\Exception $ex) {
+                    $response['failedCount']++;
+                    $response['errors'][] = [
+                        'id' => $id,
+                        'error' => $ex->getMessage()
+                    ];
+                    $response['success'] = false;
+                }
+            }
+
+            DB::commit();
+
+            $response['message'] = "Processed {$response['totalCount']} permissions. Success: {$response['successCount']}, Failed: {$response['failedCount']}";
+        } catch (\Exception $ex) {
+            DB::rollBack();
+            $response['success'] = false;
+            $response['message'] = "Bulk restore failed: " . $ex->getMessage();
+        }
+
+        return $response;
+    }
 }
