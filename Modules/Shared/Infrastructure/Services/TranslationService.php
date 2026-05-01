@@ -54,7 +54,17 @@ class TranslationService implements ITranslationService
 
         $map = [];
         foreach ($rows as $row) {
-            $map[$row->key->module . '.' . $row->key->key] = $row->value;
+            // FIX: Check if key relationship exists before accessing
+            if ($row->key && $row->key->module && $row->key->key) {
+                $map[$row->key->module . '.' . $row->key->key] = $row->value;
+            } else {
+                // Log orphaned translation values
+                Log::warning('Orphaned translation value found', [
+                    'value_id' => $row->id,
+                    'key_id' => $row->keyId,
+                    'lang' => $row->lang
+                ]);
+            }
         }
 
         Redis::setex($cacheKey, $this->cacheTtl, json_encode($map));

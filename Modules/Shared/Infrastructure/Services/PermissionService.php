@@ -9,6 +9,7 @@ use Modules\Shared\Application\Requests\Permission\CreatePermissionRequest;
 use Modules\Shared\Application\Requests\Permission\UpdatePermissionRequest;
 use Modules\Shared\Application\Resources\Permission\PermissionResource;
 use Modules\Shared\Application\Resources\Common\BulkOperationResource;
+use Modules\Shared\Infrastructure\Models\EloquentPermission;
 use Modules\Shared\Domain\Entities\Permission;
 use Modules\Shared\Infrastructure\Helpers\UserLogHelper;
 use Illuminate\Support\Facades\DB;
@@ -225,25 +226,39 @@ class PermissionService implements IPermissionService
 
     public function deletePermission(string $id, bool $permanent, ?string $currentUserId): array
     {
-        $permission = $this->repo->getPermissionById($id);
-        if (!$permission) {
+        // Use withoutGlobalScopes to get permission regardless of deleted status
+        $eloquentPermission = EloquentPermission::withoutGlobalScopes()->where('id', $id)->first();
+
+        if (!$eloquentPermission) {
             return ['success' => false, 'message' => 'Permission not found', 'deleteType' => 'none'];
         }
 
-        if ($permission->isDeleted) {
-            return ['success' => false, 'message' => 'Permission is already deleted', 'deleteType' => 'none'];
+        // Parse current user ID
+        $deletedBy = null;
+        if (!empty($currentUserId) && \Illuminate\Support\Str::isUuid($currentUserId)) {
+            $deletedBy = $currentUserId;
         }
 
         // Determine delete type
         $deleteType = 'soft';
+
         if ($permanent) {
-            $hasRelatedRecords = $this->repo->permissionHasRelatedRecords($id);
-            if (!$hasRelatedRecords) {
+            // If permission is already deleted (in trash), allow permanent delete
+            if ($eloquentPermission->is_deleted) {
                 $deleteType = 'permanent';
+            } else {
+                // Check if permanent deletion is possible for active permission
+                $hasRelatedRecords = $this->repo->permissionHasRelatedRecords($id);
+                if (!$hasRelatedRecords) {
+                    $deleteType = 'permanent';
+                }
+            }
+        } else {
+            // Soft delete - only if not already deleted
+            if ($eloquentPermission->is_deleted) {
+                return ['success' => false, 'message' => 'Permission is already deleted', 'deleteType' => 'none'];
             }
         }
-
-        $deletedBy = !empty($currentUserId) && Str::isUuid($currentUserId) ? $currentUserId : null;
 
         DB::beginTransaction();
 
@@ -253,15 +268,15 @@ class PermissionService implements IPermissionService
             // Log the action
             $this->userLogHelper->log(
                 actionType: 'Delete',
-                detail: "Permission '{$permission->name}' was " . ($deleteType === 'permanent' ? 'permanently' : 'soft') . " deleted",
+                detail: "Permission '{$eloquentPermission->name}' was " . ($deleteType === 'permanent' ? 'permanently' : 'soft') . " deleted",
                 changes: json_encode([
                     'before' => [
-                        'id' => $permission->id,
-                        'name' => $permission->name,
-                        'guardName' => $permission->guardName,
-                        'isActive' => $permission->isActive,
-                        'isDeleted' => $permission->isDeleted,
-                        'deletedAt' => $permission->deletedAt?->format('Y-m-d H:i:s')
+                        'id' => $eloquentPermission->id,
+                        'name' => $eloquentPermission->name,
+                        'guardName' => $eloquentPermission->guard_name,
+                        'isActive' => $eloquentPermission->is_active,
+                        'isDeleted' => $eloquentPermission->is_deleted,
+                        'deletedAt' => $eloquentPermission->deleted_at
                     ],
                     'after' => [
                         'isDeleted' => true,
@@ -270,8 +285,8 @@ class PermissionService implements IPermissionService
                     ]
                 ]),
                 modelName: 'Permission',
-                modelId: $permission->id,
-                userId: $deletedBy ?? $permission->id
+                modelId: $eloquentPermission->id,
+                userId: $deletedBy ?? $eloquentPermission->id
             );
 
             DB::commit();
@@ -294,16 +309,20 @@ class PermissionService implements IPermissionService
 
     public function restorePermission(string $id, ?string $currentUserId): array
     {
-        $permission = $this->repo->getPermissionById($id);
-        if (!$permission) {
-            return ['success' => false, 'message' => 'Permission not found'];
+        // Use withoutGlobalScopes to find soft-deleted permission
+        $eloquentPermission = EloquentPermission::withoutGlobalScopes()
+            ->where('id', $id)
+            ->where('is_deleted', true)
+            ->first();
+
+        if (!$eloquentPermission) {
+            return ['success' => false, 'message' => 'Permission not found or not deleted'];
         }
 
-        if (!$permission->isDeleted) {
-            return ['success' => false, 'message' => 'Permission is not deleted'];
+        $restoredBy = null;
+        if (!empty($currentUserId) && Str::isUuid($currentUserId)) {
+            $restoredBy = $currentUserId;
         }
-
-        $restoredBy = !empty($currentUserId) && Str::isUuid($currentUserId) ? $currentUserId : null;
 
         DB::beginTransaction();
 
@@ -311,21 +330,20 @@ class PermissionService implements IPermissionService
             $this->repo->restorePermission($id);
 
             // Update the permission with restoredBy info
-            $permission->isDeleted = false;
-            $permission->deletedAt = null;
-            $permission->updatedBy = $restoredBy;
-            $permission->updatedAt = Carbon::now()->toDateTimeImmutable();
-            $this->repo->updatePermission($permission);
-
+            $eloquentPermission->is_deleted = false;
+            $eloquentPermission->deleted_at = null;
+            $eloquentPermission->updated_by = $restoredBy;
+            $eloquentPermission->updated_at = Carbon::now();
+            $eloquentPermission->save();
 
             // Log the action
             $this->userLogHelper->log(
                 actionType: 'Restore',
-                detail: "Permission '{$permission->name}' was restored",
+                detail: "Permission '{$eloquentPermission->name}' was restored",
                 changes: json_encode([
                     'before' => [
                         'isDeleted' => true,
-                        'deletedAt' => $permission->deletedAt?->format('Y-m-d H:i:s')
+                        'deletedAt' => $eloquentPermission->deleted_at
                     ],
                     'after' => [
                         'isDeleted' => false,
@@ -335,8 +353,8 @@ class PermissionService implements IPermissionService
                     ]
                 ]),
                 modelName: 'Permission',
-                modelId: $permission->id,
-                userId: $restoredBy ?? $permission->id
+                modelId: $eloquentPermission->id,
+                userId: $restoredBy ?? $eloquentPermission->id
             );
 
             DB::commit();
@@ -354,15 +372,23 @@ class PermissionService implements IPermissionService
 
     public function checkDeleteEligibility(string $id): array
     {
-        $permission = $this->repo->getPermissionById($id);
-        if (!$permission) {
+        // Use withoutGlobalScopes to get permission regardless of deleted status
+        $eloquentPermission = EloquentPermission::withoutGlobalScopes()->where('id', $id)->first();
+
+        if (!$eloquentPermission) {
             return ['success' => false, 'message' => 'Permission not found', 'canBePermanent' => false];
         }
 
-        if ($permission->isDeleted) {
-            return ['success' => false, 'message' => 'Permission is already deleted', 'canBePermanent' => false];
+        // If permission is already soft deleted (in trash), it can be permanently deleted
+        if ($eloquentPermission->is_deleted) {
+            return [
+                'success' => true,
+                'message' => 'Permission is in trash and can be permanently deleted',
+                'canBePermanent' => true
+            ];
         }
 
+        // Permission is active (not deleted) - check if it has related records
         $hasRelatedRecords = $this->repo->permissionHasRelatedRecords($id);
         $canBePermanent = !$hasRelatedRecords;
         $message = $canBePermanent

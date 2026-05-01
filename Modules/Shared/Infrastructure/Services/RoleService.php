@@ -9,6 +9,7 @@ use Modules\Shared\Application\Requests\Role\CreateRoleRequest;
 use Modules\Shared\Application\Requests\Role\UpdateRoleRequest;
 use Modules\Shared\Application\Resources\Role\RoleResource;
 use Modules\Shared\Domain\Entities\Role;
+use Modules\Shared\Infrastructure\Models\EloquentRole;
 use Modules\Shared\Application\Resources\Common\BulkOperationResource;
 use Modules\Shared\Infrastructure\Helpers\UserLogHelper;
 use Illuminate\Support\Facades\DB;
@@ -226,25 +227,39 @@ class RoleService implements IRoleService
 
     public function deleteRole(string $id, bool $permanent, ?string $currentUserId): array
     {
-        $role = $this->repo->getRoleById($id);
-        if (!$role) {
+        // Use withoutGlobalScopes to get role regardless of deleted status
+        $eloquentRole = EloquentRole::withoutGlobalScopes()->where('id', $id)->first();
+
+        if (!$eloquentRole) {
             return ['success' => false, 'message' => 'Role not found', 'deleteType' => 'none'];
         }
 
-        if ($role->isDeleted) {
-            return ['success' => false, 'message' => 'Role is already deleted', 'deleteType' => 'none'];
+        // Parse current user ID
+        $deletedBy = null;
+        if (!empty($currentUserId) && \Illuminate\Support\Str::isUuid($currentUserId)) {
+            $deletedBy = $currentUserId;
         }
 
         // Determine delete type
         $deleteType = 'soft';
+
         if ($permanent) {
-            $hasRelatedRecords = $this->repo->roleHasRelatedRecords($id);
-            if (!$hasRelatedRecords) {
+            // If role is already deleted (in trash), allow permanent delete
+            if ($eloquentRole->is_deleted) {
                 $deleteType = 'permanent';
+            } else {
+                // Check if permanent deletion is possible for active role
+                $hasRelatedRecords = $this->repo->roleHasRelatedRecords($id);
+                if (!$hasRelatedRecords) {
+                    $deleteType = 'permanent';
+                }
+            }
+        } else {
+            // Soft delete - only if not already deleted
+            if ($eloquentRole->is_deleted) {
+                return ['success' => false, 'message' => 'Role is already deleted', 'deleteType' => 'none'];
             }
         }
-
-        $deletedBy = !empty($currentUserId) && Str::isUuid($currentUserId) ? $currentUserId : null;
 
         DB::beginTransaction();
 
@@ -254,15 +269,15 @@ class RoleService implements IRoleService
             // Log the action
             $this->userLogHelper->log(
                 actionType: 'Delete',
-                detail: "Role '{$role->name}' was " . ($deleteType === 'permanent' ? 'permanently' : 'soft') . " deleted",
+                detail: "Role '{$eloquentRole->name}' was " . ($deleteType === 'permanent' ? 'permanently' : 'soft') . " deleted",
                 changes: json_encode([
                     'before' => [
-                        'id' => $role->id,
-                        'name' => $role->name,
-                        'guardName' => $role->guardName,
-                        'isActive' => $role->isActive,
-                        'isDeleted' => $role->isDeleted,
-                        'deletedAt' => $role->deletedAt?->format('Y-m-d H:i:s')
+                        'id' => $eloquentRole->id,
+                        'name' => $eloquentRole->name,
+                        'guardName' => $eloquentRole->guard_name,
+                        'isActive' => $eloquentRole->is_active,
+                        'isDeleted' => $eloquentRole->is_deleted,
+                        'deletedAt' => $eloquentRole->deleted_at
                     ],
                     'after' => [
                         'isDeleted' => true,
@@ -271,8 +286,8 @@ class RoleService implements IRoleService
                     ]
                 ]),
                 modelName: 'Role',
-                modelId: $role->id,
-                userId: $deletedBy ?? $role->id
+                modelId: $eloquentRole->id,
+                userId: $deletedBy ?? $eloquentRole->id
             );
 
             DB::commit();
@@ -353,15 +368,23 @@ class RoleService implements IRoleService
 
     public function checkDeleteEligibility(string $id): array
     {
-        $role = $this->repo->getRoleById($id);
-        if (!$role) {
+        // Use withoutGlobalScopes to get role regardless of deleted status
+        $eloquentRole = EloquentRole::withoutGlobalScopes()->where('id', $id)->first();
+
+        if (!$eloquentRole) {
             return ['success' => false, 'message' => 'Role not found', 'canBePermanent' => false];
         }
 
-        if ($role->isDeleted) {
-            return ['success' => false, 'message' => 'Role is already deleted', 'canBePermanent' => false];
+        // If role is already soft deleted (in trash), it can be permanently deleted
+        if ($eloquentRole->is_deleted) {
+            return [
+                'success' => true,
+                'message' => 'Role is in trash and can be permanently deleted',
+                'canBePermanent' => true
+            ];
         }
 
+        // Role is active (not deleted) - check if it has related records
         $hasRelatedRecords = $this->repo->roleHasRelatedRecords($id);
         $canBePermanent = !$hasRelatedRecords;
         $message = $canBePermanent

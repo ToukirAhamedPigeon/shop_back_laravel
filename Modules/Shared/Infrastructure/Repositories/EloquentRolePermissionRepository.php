@@ -92,21 +92,23 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
 
     public function deleteRole(string $id, bool $permanent = false, ?string $deletedBy = null): void
     {
-        $model = EloquentRole::find($id);
+        $model = EloquentRole::withoutGlobalScopes()->where('id', $id)->first();
         if (!$model) return;
 
         if ($permanent) {
-            // Delete related records
+            // Delete all related records first
             EloquentRolePermission::where('role_id', $id)->delete();
             DB::table('model_roles')->where('role_id', $id)->delete();
             $model->forceDelete();
         } else {
-            // Soft delete - just set is_deleted flag
-            $model->is_deleted = true;
-            $model->deleted_at = now();
-            $model->updated_at = now();
-            $model->updated_by = $deletedBy;
-            $model->save();
+            // Soft delete - only if not already deleted
+            if (!$model->is_deleted) {
+                $model->is_deleted = true;
+                $model->deleted_at = now();
+                $model->updated_at = now();
+                $model->updated_by = $deletedBy;
+                $model->save();
+            }
         }
     }
 
@@ -306,30 +308,33 @@ class EloquentRolePermissionRepository implements IRolePermissionRepository
 
     public function deletePermission(string $id, bool $permanent = false, ?string $deletedBy = null): void
     {
-        $model = EloquentPermission::find($id);
+        $model = EloquentPermission::withoutGlobalScopes()->where('id', $id)->first();
         if (!$model) return;
 
         if ($permanent) {
-            // Delete related records
+            // Delete all related records first
             EloquentRolePermission::where('permission_id', $id)->delete();
             DB::table('model_permissions')->where('permission_id', $id)->delete();
             $model->forceDelete();
         } else {
-            // Soft delete - just set is_deleted flag
-            $model->is_deleted = true;
-            $model->deleted_at = now();
-            $model->updated_at = now();
-            $model->updated_by = $deletedBy;
-            $model->save();
+            // Soft delete - only if not already deleted
+            if (!$model->is_deleted) {
+                $model->is_deleted = true;
+                $model->deleted_at = now();
+                $model->updated_at = now();
+                $model->updated_by = $deletedBy;
+                $model->save();
+            }
         }
     }
 
     public function restorePermission(string $id): void
     {
-        $model = EloquentPermission::where('id', $id)->first();
+        $model = EloquentPermission::withoutGlobalScopes()->where('id', $id)->where('is_deleted', true)->first();
         if ($model) {
             $model->is_deleted = false;
             $model->deleted_at = null;
+            $model->updated_at = now();
             $model->save();
         }
     }

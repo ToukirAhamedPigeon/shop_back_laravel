@@ -660,53 +660,61 @@ class UserService implements IUserService
      */
     public function deleteUser(string $id, bool $permanent, ?string $currentUserId): array
     {
-        // 1️⃣ Fetch user
-        $user = $this->repo->getById($id);
-        if (!$user) {
+        // Use withoutGlobalScopes to get user regardless of deleted status
+        $eloquentUser = EloquentUser::withoutGlobalScopes()->find($id);
+
+        if (!$eloquentUser) {
             return ['success' => false, 'message' => 'User not found', 'deleteType' => 'none'];
         }
 
-        // 2️⃣ Parse current user ID
+        // Parse current user ID
         $deletedBy = null;
         if (!empty($currentUserId) && Str::isUuid($currentUserId)) {
             $deletedBy = $currentUserId;
         }
 
-        // 3️⃣ Check if user is already deleted
-        if ($user->isDeleted) {
-            return ['success' => false, 'message' => 'User is already deleted', 'deleteType' => 'none'];
-        }
-
-        // 4️⃣ Determine delete type based on conditions
-        $deleteType = 'soft'; // Default to soft delete
-
-        if ($permanent) {
-            // Check if permanent deletion is possible
-            $hasRelatedRecords = $this->repo->hasRelatedRecords($id);
-            $hasVerifiedEmail = $this->repo->hasVerifiedEmail($id);
-
-            Log::info('Checking delete conditions', [
-                'hasRelatedRecords' => $hasRelatedRecords,
-                'hasVerifiedEmail' => $hasVerifiedEmail,
-                'permanent' => $permanent
-            ]);
-            // If no related records AND email not verified, allow permanent delete
-            if (!$hasRelatedRecords && !$hasVerifiedEmail) {
+        // Check if user is already deleted (soft deleted)
+        if ($eloquentUser->is_deleted) {
+            // If already soft deleted and trying to delete again, allow permanent delete
+            if ($permanent) {
+                // User is already in trash, proceed with permanent delete
                 $deleteType = 'permanent';
             } else {
-                // Force soft delete if conditions not met
-                $deleteType = 'soft';
+                return ['success' => false, 'message' => 'User is already deleted', 'deleteType' => 'none'];
+            }
+        } else {
+            // User is active (not deleted)
+            $deleteType = 'soft'; // Default to soft delete
+
+            if ($permanent) {
+                // Check if permanent deletion is possible for active users
+                $hasRelatedRecords = $this->repo->hasRelatedRecords($id);
+                $hasVerifiedEmail = $this->repo->hasVerifiedEmail($id);
+
+                Log::info('Checking delete conditions for active user', [
+                    'hasRelatedRecords' => $hasRelatedRecords,
+                    'hasVerifiedEmail' => $hasVerifiedEmail,
+                    'permanent' => $permanent
+                ]);
+
+                // If no related records AND email not verified, allow permanent delete
+                if (!$hasRelatedRecords && !$hasVerifiedEmail) {
+                    $deleteType = 'permanent';
+                } else {
+                    // Force soft delete if conditions not met
+                    $deleteType = 'soft';
+                }
             }
         }
 
-        // 5️⃣ Perform the deletion
+        // Perform the deletion
         DB::beginTransaction();
 
         try {
             if ($deleteType === 'permanent') {
                 // Delete profile image first if it exists
-                if (!empty($user->profileImage)) {
-                    FileHelper::deleteFile($user->profileImage);
+                if (!empty($eloquentUser->profile_image)) {
+                    FileHelper::deleteFile($eloquentUser->profile_image);
                 }
 
                 // Permanent delete - remove user and all related records
@@ -715,9 +723,10 @@ class UserService implements IUserService
                 // Log the action
                 $this->userLogHelper->log(
                     actionType: 'Delete',
-                    detail: "User '{$user->username}' was permanently deleted",
+                    detail: "User '{$eloquentUser->username}' was permanently deleted",
                     changes: json_encode([
-                        'before' => ['id' => $user->id, 'username' => $user->username, 'email' => $user->email]
+                        'before' => ['id' => $eloquentUser->id, 'username' => $eloquentUser->username, 'email' => $eloquentUser->email],
+                        'after' => ['permanently_deleted' => true]
                     ]),
                     modelName: 'User',
                     modelId: $id,
@@ -730,9 +739,9 @@ class UserService implements IUserService
                 // Log the action
                 $this->userLogHelper->log(
                     actionType: 'Delete',
-                    detail: "User '{$user->username}' was soft deleted",
+                    detail: "User '{$eloquentUser->username}' was soft deleted",
                     changes: json_encode([
-                        'before' => ['id' => $user->id, 'username' => $user->username, 'email' => $user->email, 'isDeleted' => false],
+                        'before' => ['id' => $eloquentUser->id, 'username' => $eloquentUser->username, 'email' => $eloquentUser->email, 'isDeleted' => false],
                         'after' => ['isDeleted' => true, 'deletedAt' => Carbon::now()->toISOString()]
                     ]),
                     modelName: 'User',
@@ -741,7 +750,6 @@ class UserService implements IUserService
                 );
             }
 
-            $this->repo->saveChanges();
             DB::commit();
 
             return [
@@ -878,13 +886,17 @@ class UserService implements IUserService
      */
     public function checkDeleteEligibility(string $id): array
     {
-        $user = $this->repo->getById($id);
-        if (!$user) {
+        // Use withoutGlobalScopes to get the user regardless of deleted status
+        $eloquentUser = EloquentUser::withoutGlobalScopes()->find($id);
+
+        if (!$eloquentUser) {
             return ['success' => false, 'message' => 'User not found', 'canBePermanent' => false];
         }
 
-        if ($user->isDeleted) {
-            return ['success' => false, 'message' => 'User is already deleted', 'canBePermanent' => false];
+        // Check the actual is_deleted flag from the database
+        if ($eloquentUser->is_deleted) {
+            // User is already in trash, can be permanently deleted
+            return ['success' => true, 'message' => 'User is in trash and can be permanently deleted', 'canBePermanent' => true];
         }
 
         $hasRelatedRecords = $this->repo->hasRelatedRecords($id);

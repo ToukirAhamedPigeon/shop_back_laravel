@@ -22,7 +22,7 @@ use Modules\Shared\API\Controllers\UserTableCombinationController;
 | CSRF (Public)
 |--------------------------------------------------------------------------
 */
-Route::prefix('csrf')->group(function () {
+Route::prefix('csrf')->middleware('web')->group(function () {
     Route::get('/token', [CsrfController::class, 'getToken'])->name('csrf.token');
 });
 
@@ -145,7 +145,15 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('/{id}', [RoleController::class, 'deleteRole'])->name('roles.delete')->middleware('permission:any,delete-admin-roles');
         Route::post('/{id}/restore', [RoleController::class, 'restoreRole'])->name('roles.restore')->middleware('permission:any,restore-admin-roles');
         Route::get('/{id}/delete-info', [RoleController::class, 'getDeleteInfo'])->name('roles.delete-info')->middleware('permission:any,restore-admin-roles');
-    });
+        // Bulk operations routes
+        Route::post('/bulk-delete', [RoleController::class, 'bulkDelete'])
+            ->name('roles.bulk-delete')
+            ->middleware('permission:any,delete-admin-roles');
+
+        Route::post('/bulk-restore', [RoleController::class, 'bulkRestore'])
+            ->name('roles.bulk-restore')
+            ->middleware('permission:any,restore-admin-roles');
+        });
 
     /*
     |-----------------------------
@@ -161,6 +169,13 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('/{id}', [PermissionController::class, 'deletePermission'])->name('permissions.delete')->middleware('permission:any,delete-admin-permissions');
         Route::post('/{id}/restore', [PermissionController::class, 'restorePermission'])->name('permissions.restore')->middleware('permission:any,restore-admin-permissions');
         Route::get('/{id}/delete-info', [PermissionController::class, 'getDeleteInfo'])->name('permissions.delete-info')->middleware('permission:any,restore-admin-permissions');
+        Route::post('/bulk-delete', [PermissionController::class, 'bulkDelete'])
+            ->name('permissions.bulk-delete')
+            ->middleware('permission:any,delete-admin-permissions');
+
+        Route::post('/bulk-restore', [PermissionController::class, 'bulkRestore'])
+            ->name('permissions.bulk-restore')
+            ->middleware('permission:any,restore-admin-permissions');
     });
 
     /*

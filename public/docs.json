@@ -2551,6 +2551,849 @@
                     }
                 }
             }
+        },
+        "/api/translations/list": {
+            "post": {
+                "tags": [
+                    "Translations"
+                ],
+                "summary": "GetTranslations List",
+                "description": "",
+                "operationId": "Modules\\Shared\\API\\Controllers\\TranslationsController@getTranslations",
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "q": {
+                                        "type": "string"
+                                    },
+                                    "page": {
+                                        "type": "integer",
+                                        "minimum": 1
+                                    },
+                                    "limit": {
+                                        "type": "integer",
+                                        "minimum": 1,
+                                        "maximum": 1000
+                                    },
+                                    "sortBy": {
+                                        "type": "string",
+                                        "enum": [
+                                            "key",
+                                            "module",
+                                            "createdAt",
+                                            "updatedAt"
+                                        ]
+                                    },
+                                    "sortOrder": {
+                                        "type": "string",
+                                        "enum": [
+                                            "asc",
+                                            "desc"
+                                        ]
+                                    },
+                                    "startDate": {
+                                        "type": "string",
+                                        "format": "date"
+                                    },
+                                    "endDate": {
+                                        "type": "string",
+                                        "format": "date"
+                                    },
+                                    "modules": {
+                                        "type": "array"
+                                    },
+                                    "modules.*": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/translations/{id}": {
+            "get": {
+                "tags": [
+                    "Translations"
+                ],
+                "summary": "GetTranslation Translation",
+                "description": "",
+                "operationId": "Modules\\Shared\\API\\Controllers\\TranslationsController@getTranslation",
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "The id identifier"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "Translations"
+                ],
+                "summary": "UpdateTranslation Translation",
+                "description": "",
+                "operationId": "Modules\\Shared\\API\\Controllers\\TranslationsController@updateTranslation",
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "The id identifier"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "key": {
+                                        "type": "string",
+                                        "minLength": 2,
+                                        "maxLength": 255
+                                    },
+                                    "module": {
+                                        "type": "string",
+                                        "minLength": 2,
+                                        "maxLength": 100
+                                    },
+                                    "englishValue": {
+                                        "type": "string"
+                                    },
+                                    "banglaValue": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "key",
+                                    "module",
+                                    "englishValue",
+                                    "banglaValue"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Translations"
+                ],
+                "summary": "DeleteTranslation Translation",
+                "description": "",
+                "operationId": "Modules\\Shared\\API\\Controllers\\TranslationsController@deleteTranslation",
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "The id identifier"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/translations/{id}/edit": {
+            "get": {
+                "tags": [
+                    "Translations"
+                ],
+                "summary": "GetTranslationForEdit Edit",
+                "description": "",
+                "operationId": "Modules\\Shared\\API\\Controllers\\TranslationsController@getTranslationForEdit",
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "The id identifier"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/translations/create": {
+            "post": {
+                "tags": [
+                    "Translations"
+                ],
+                "summary": "CreateTranslation Create",
+                "description": "",
+                "operationId": "Modules\\Shared\\API\\Controllers\\TranslationsController@createTranslation",
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "key": {
+                                        "type": "string",
+                                        "minLength": 2,
+                                        "maxLength": 255
+                                    },
+                                    "module": {
+                                        "type": "string",
+                                        "minLength": 2,
+                                        "maxLength": 100
+                                    },
+                                    "englishValue": {
+                                        "type": "string"
+                                    },
+                                    "banglaValue": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "key",
+                                    "module",
+                                    "englishValue",
+                                    "banglaValue"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/translations/modules": {
+            "get": {
+                "tags": [
+                    "Translations"
+                ],
+                "summary": "GetModules Module",
+                "description": "",
+                "operationId": "Modules\\Shared\\API\\Controllers\\TranslationsController@getModules",
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/options/list": {
+            "post": {
+                "tags": [
+                    "Options"
+                ],
+                "summary": "GetOptionsList List",
+                "description": "",
+                "operationId": "Modules\\Shared\\API\\Controllers\\OptionsController@getOptionsList",
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "q": {
+                                        "type": "string"
+                                    },
+                                    "page": {
+                                        "type": "integer",
+                                        "minimum": 1
+                                    },
+                                    "limit": {
+                                        "type": "integer",
+                                        "minimum": 1,
+                                        "maximum": 1000
+                                    },
+                                    "sortBy": {
+                                        "type": "string"
+                                    },
+                                    "sortOrder": {
+                                        "enum": [
+                                            "asc",
+                                            "desc"
+                                        ],
+                                        "type": "string"
+                                    },
+                                    "isActiveStr": {
+                                        "type": "string",
+                                        "enum": [
+                                            "all",
+                                            "true",
+                                            "false"
+                                        ]
+                                    },
+                                    "isDeletedStr": {
+                                        "type": "string",
+                                        "enum": [
+                                            "true",
+                                            "false"
+                                        ]
+                                    },
+                                    "parentId": {
+                                        "type": "string"
+                                    },
+                                    "createdFrom": {
+                                        "type": "string",
+                                        "format": "date"
+                                    },
+                                    "createdTo": {
+                                        "type": "string",
+                                        "format": "date"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/options/{id}": {
+            "get": {
+                "tags": [
+                    "Options"
+                ],
+                "summary": "GetOption Option",
+                "description": "",
+                "operationId": "Modules\\Shared\\API\\Controllers\\OptionsController@getOption",
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "The id identifier"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "Options"
+                ],
+                "summary": "Update a Option",
+                "description": "Update an existing Option with new data",
+                "operationId": "Modules\\Shared\\API\\Controllers\\OptionsController@update",
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "example": 1
+                        },
+                        "description": "The id identifier",
+                        "example": 1
+                    },
+                    {
+                        "name": "X-Custom-Header",
+                        "in": "header",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "example": "custom-value"
+                        },
+                        "example": "custom-value"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "example": "Updated Name"
+                                    },
+                                    "parentId": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                    },
+                                    "hasChild": {
+                                        "type": "string",
+                                        "enum": [
+                                            "true",
+                                            "false"
+                                        ]
+                                    },
+                                    "isActive": {
+                                        "type": "string",
+                                        "enum": [
+                                            "true",
+                                            "false"
+                                        ]
+                                    }
+                                },
+                                "required": [
+                                    "name",
+                                    "hasChild"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Resource not found"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Options"
+                ],
+                "summary": "DeleteOption Option",
+                "description": "",
+                "operationId": "Modules\\Shared\\API\\Controllers\\OptionsController@deleteOption",
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "The id identifier"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/options/{id}/edit": {
+            "get": {
+                "tags": [
+                    "Options"
+                ],
+                "summary": "GetOptionForEdit Edit",
+                "description": "",
+                "operationId": "Modules\\Shared\\API\\Controllers\\OptionsController@getOptionForEdit",
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "The id identifier"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/options/create": {
+            "post": {
+                "tags": [
+                    "Options"
+                ],
+                "summary": "Create Create",
+                "description": "",
+                "operationId": "Modules\\Shared\\API\\Controllers\\OptionsController@create",
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "names": {
+                                        "type": "string"
+                                    },
+                                    "parentId": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                    },
+                                    "hasChild": {
+                                        "type": "string",
+                                        "enum": [
+                                            "true",
+                                            "false"
+                                        ]
+                                    },
+                                    "isActive": {
+                                        "type": "string",
+                                        "enum": [
+                                            "true",
+                                            "false"
+                                        ]
+                                    }
+                                },
+                                "required": [
+                                    "names",
+                                    "hasChild"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/options/{id}/restore": {
+            "post": {
+                "tags": [
+                    "Options"
+                ],
+                "summary": "RestoreOption Restore",
+                "description": "",
+                "operationId": "Modules\\Shared\\API\\Controllers\\OptionsController@restoreOption",
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "The id identifier"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/options/{id}/delete-info": {
+            "get": {
+                "tags": [
+                    "Options"
+                ],
+                "summary": "GetDeleteInfo Delete Info",
+                "description": "",
+                "operationId": "Modules\\Shared\\API\\Controllers\\OptionsController@getDeleteInfo",
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "The id identifier"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/options/parents": {
+            "post": {
+                "tags": [
+                    "Options"
+                ],
+                "summary": "GetParentOptions Parent",
+                "description": "",
+                "operationId": "Modules\\Shared\\API\\Controllers\\OptionsController@getParentOptions",
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "limit": {
+                                        "type": "integer",
+                                        "minimum": 1,
+                                        "maximum": 1000
+                                    },
+                                    "skip": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                    },
+                                    "search": {
+                                        "type": "string"
+                                    },
+                                    "where": {
+                                        "type": "array"
+                                    },
+                                    "sortOrder": {
+                                        "enum": [
+                                            "asc",
+                                            "desc"
+                                        ],
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "components": {

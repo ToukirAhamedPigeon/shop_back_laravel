@@ -136,15 +136,13 @@ class PermissionController extends Controller
     {
         $result = $this->service->checkDeleteEligibility($id);
 
-        if (!$result['success']) {
-            return response()->json(['message' => $result['message']], 404);
-        }
-
+        // Always return 200 with the actual eligibility info (not 404)
         return response()->json([
             'canBePermanent' => $result['canBePermanent'],
             'message' => $result['message']
         ]);
     }
+
      /**
      * Bulk delete permissions (soft or permanent)
      *
