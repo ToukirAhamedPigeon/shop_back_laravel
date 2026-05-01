@@ -372,18 +372,21 @@ class TranslationService implements ITranslationService
         }
         $affectedModules = array_unique($affectedModules);
 
+        // Call repository method which already returns BulkOperationResource
         $result = $this->repo->bulkDeleteTranslations($ids, $deletedBy);
 
-        // Log the bulk operation
-        if ($result->successCount > 0) {
+        // Log the bulk operation - Access properties from the resource's resource array
+        $resultArray = $result->toArray(request());
+
+        if ($resultArray['successCount'] > 0) {
             $this->userLogHelper->log(
                 actionType: 'BulkDelete',
-                detail: "Bulk delete of {$result->successCount} translation(s). Failed: {$result->failedCount}",
+                detail: "Bulk delete of {$resultArray['successCount']} translation(s). Failed: {$resultArray['failedCount']}",
                 changes: json_encode([
                     'ids' => $ids,
-                    'successCount' => $result->successCount,
-                    'failedCount' => $result->failedCount,
-                    'errors' => $result->errors
+                    'successCount' => $resultArray['successCount'],
+                    'failedCount' => $resultArray['failedCount'],
+                    'errors' => $resultArray['errors']
                 ]),
                 modelName: 'Translation',
                 modelId: 'bulk',
